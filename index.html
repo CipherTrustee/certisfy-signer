@@ -742,7 +742,7 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
     const [year, month, day] =(typeof date == "string"?date:toISOString(date)).split('-')
     return `${month}/${day}/${year}`;
 }},"mounted":async function(){
-  		const certisfy = await import(`https://cdn.jsdelivr.net/gh/CipherTrustee/certisfy-js/js/certisfy/certisfy.js`)
+  		const certisfy = await import(`https://cdn.jsdelivr.net/gh/CipherTrustee/certisfy-js/certisfy.js`)
 
         window.certisfy = certisfy;
         window.certisfy.SET_SDK_MODE(true);
