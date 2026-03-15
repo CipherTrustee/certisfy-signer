@@ -10,7 +10,6 @@ The code required for signing is in [certisfy-js](https://github.com/CipherTrust
    import * as certisfy from "./js/certisfy/certisfy.js" 
    certisfy.SET_SDK_MODE(true); 
    certisfy.loadTrustRoots();
-   certisfy.setAPITarget()
 ```
 
 ### The signer test console
@@ -19,11 +18,11 @@ The verifier test console app can be accessed here: [https://certisfy.com/signer
 
 The point of the console app is primarily to demonstrate claim signing independent of the Certisfy app ([https://certisfy.com/app/](https://certisfy.com/app/)). 
 
-The way to use it is to generate claims from the app, then use the verifier or the Certisfy app to verify the claims.
+The way to use it is to generate claims from the console app, then use the verifier or the Certisfy app to verify the claims.
 
 *You must attach the trust chain when creating your claim in the Certisfy app in order to be able to verify via the verifier.*
 
-Developers can use the console app for basic testing of automated claim generation, it uses the `/js/certisfy` folder code.
+Developers can use the console app for basic testing of automated claim generation, it uses [certisfy-js](https://github.com/CipherTrustee/certisfy-js).
 
 Currently a signer is available only for Javascript.
 
@@ -97,7 +96,7 @@ The signer exposes the following API functions to faciliate claim creation.
 
     **Arguments**
 
-    - `plainFields`\    
+    - `plainFields`\
       The claim data, included embedded claims that represent *vouched-for* claims.       
       
     **Usage** 
@@ -119,7 +118,7 @@ The signer exposes the following API functions to faciliate claim creation.
     - `userCode`\
       The short code for looking up the DH exchange object. 
 
-    - `fnClaimProvider`\    
+    - `fnClaimProvider`\
       This is a callback function that will create the claim to be included in the DH exchange. 
       See the signer console app for an example of how this is done.
 
