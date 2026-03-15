@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+ <html solvent_object_id="f86df98eec9090c8c9c2814e91c5a49b"><head><!-- when using the mode "code", it's important to specify charset utf-8 -->
+<meta charset="utf-8">
+<script src="/ide-proxy/com.codesolvent.solvent.platform.static-asset/lowcodr/js-object-merger.js"></script>
+<link href="js/jsoneditor/jsoneditor.min.css" rel="stylesheet">
+<script src="js/jsoneditor/jsoneditor.min.js"></script>
+
+<!--
+<script type="module">
+  import * as certisfy from "./js/certisfy/certisfy.js"
+  window.certisfy = certisfy;
+  window.certisfy.SET_SDK_MODE(true);
+  window.certisfy.loadTrustRoots();
+</script>
+-->
+
+<style type="text/css">
+    [v-cloak] {
+      display: none;
+    }
+</style>  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Material+Icons" rel="stylesheet">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    
+<link href="https://cdn.jsdelivr.net/npm/vuetify@3.x/dist/vuetify.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.x/dist/vuetify.min.js"></script>
+<title>Certisfy Claim Verifier</title>
+
+<script> 
+function importAppModule(modulePath){return import(modulePath)};
+</script><script>
+      var solventAppErrorHandler = null;
+      if((new URL(window.location.href).searchParams.get("radkit_composer_viewport_id"))){
+
+        solventAppErrorHandler = (error, vm, info) => {
+              // error: error trace
+              // vm: component in which error occured
+              // info: Vue specific error information such as lifecycle hooks, events etc.
+
+              (window.opener?window.opener:(window.parent?window.parent:window)).postMessage(Object.assign({},{
+                  "message":"radkit.driver.objectEditorUIEvent",
+                  "editorMsg":"log-app-message",
+                  "args":{
+                    "log":(typeof error == "string"?{"message":error}:error),
+                    "radkit_composer_viewport_id":(new URL(window.location.href).searchParams.get("radkit_composer_viewport_id"))
+                  }
+              }));
+        };
+    }
+</script></head><body><div id="app" data-role="mount-element" v-cloak solvent_object_id="b590da55d485a28d930856a942f476f9"><v-app solvent_object_id="el-tkn6g0w5ssnjd"><v-main solvent_object_id="el-8o043ozobyce9"><v-app-bar solvent_object_id="c3e8326de0bc15b81ea786ca457c4b2c"><v-toolbar-title solvent_object_id="611ac004e9789f0270f203c85cdc25c0">Certisfy Claim Signer</v-toolbar-title></v-app-bar><v-container solvent_object_id="el-xw8jb7tohalhe"><v-row class="mb-2 mt-2">
+  <v-col>
+    <v-tabs v-model="tabs.certificateInfo">
+      <v-tab value="certificateInfo">Certificate Info</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="tabs.certificateInfo">
+      <v-tabs-window-item value="certificateInfo">
+        <v-card flat class="grey-lighten-4">
+          <v-card-text>
+            <v-row>
+			  <v-col cols="12">
+                <v-select
+                  label="Certificate"
+                  :items="userProfile.certificates"
+                  v-model="claimContext.certContext"
+                  item-title="label"
+                  item-value="finger_print"
+                  persistent-hint
+                  return-object
+                />
+              </v-col>              
+              <v-col cols="12" v-if="claimContext.certContext">
+                Id:
+                <v-chip>{{ claimContext.certContext.finger_print }}</v-chip>
+              </v-col>
+
+              <v-col cols="12" v-if="claimContext.certContext">
+                Issue Date:
+                <v-chip>
+                  {{ showDate(claimContext.certContext.validfrom_date) }}
+                  <v-icon
+                    v-if="isPretermedCert(claimContext.certContext)"
+                    color="red"
+                    title="Pretermed"
+                  >
+                    mdi-alert-circle
+                  </v-icon>
+                </v-chip>
+              </v-col>
+
+              <v-col cols="12" v-if="claimContext.certContext">
+                Expiration Date:
+                <v-chip>
+                  {{ showDate(claimContext.certContext.expiration_date) }}
+                  <v-icon
+                    v-if="isExpiredCert(claimContext.certContext)"
+                    color="red"
+                    title="Expired"
+                  >
+                    mdi-alert-circle
+                  </v-icon>
+                </v-chip>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+      </v-tabs-window-item>
+    </v-tabs-window>
+  </v-col>
+</v-row>
+<v-row class="mb-2" v-if="claimContext.certContext">
+  <v-col>
+    <v-tabs v-model="tabs.certifiedFields">
+      <v-tab value="certifiedFields">Certified Fields</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="tabs.certifiedFields">
+      <v-tabs-window-item value="certifiedFields">
+        <v-card flat class="grey-lighten-4">
+          <v-card-text>
+			
+            <v-data-table
+              v-model="claimContext.certContextSelectedFields"
+              :items="claimContext.certContext.csr.signedDocument"
+              :headers="claimContext.fieldHeaders"
+              
+              show-select
+              return-object
+              hide-default-header
+              hide-default-footer
+              no-data-text=""
+            >
+
+              <template v-slot:item="{ item, internalItem, toggleSelect }">
+                <tr
+                  v-if="!item.plainField.name.startsWith('certisfy-') &&
+                       !item.plainField.name.startsWith('pki-')"
+                >
+                  <td>
+                    <v-checkbox-btn
+                      v-model="internalItem.isSelected"
+                      @update:model-value="toggleSelect(internalItem)"
+                    />
+                  </td>
+
+                  <td class="text-right">
+                    <b>{{ item.plainField.name }}</b>
+                  </td>
+
+                  <td class="text-left">
+                    {{ item.plainField.value }}
+                  </td>
+                </tr>
+              </template>
+
+            </v-data-table>
+
+          </v-card-text>
+        </v-card>
+      </v-tabs-window-item>
+    </v-tabs-window>
+  </v-col>
+</v-row>
+<v-row class="mb-2" v-if="claimContext.certContext">
+  <v-col>
+    <v-tabs v-model="tabs.unverifiedFields">
+      <v-tab value="unverifiedFields">Unverified Fields</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="tabs.unverifiedFields">
+      <v-tabs-window-item value="unverifiedFields">
+
+        <v-card flat class="grey-lighten-4">
+          <v-card-text>
+            <v-row>
+              <v-col cols="12">
+                <v-text-field
+                  placeholder="Label"
+                  v-model="claimContext.fieldModel.name"
+                />
+              </v-col>
+
+              <v-col cols="12">
+                <v-textarea
+                  placeholder="Value"
+                  v-model="claimContext.fieldModel.value"
+                />
+              </v-col>
+            </v-row>
+          </v-card-text>
+
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn
+              size="small"
+              @click="addCertClaimField()"
+            >
+              Add
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+
+
+        <v-card flat class="grey-lighten-4 mt-3">
+          <v-card-text>
+
+            <v-data-table
+              :items="claimContext.certContextUnverifiedFields"
+              :headers="claimContext.fieldHeaders"
+              item-value="name"
+              hide-default-header
+              hide-default-footer
+              no-data-text=""
+            >
+
+              <template v-slot:item="{ item }">
+                <tr>
+                  <td class="text-right">
+                    <strong>{{ item.name }}</strong>
+                  </td>
+
+                  <td class="text-left">
+                    {{ item.value }}
+                  </td>
+
+                  <td>
+                    <v-btn
+                      size="small"
+                      icon
+                      @click="deleteCertClaimField(item)"
+                    >
+                      <v-icon color="blue">mdi-close</v-icon>
+                    </v-btn>
+                  </td>
+                </tr>
+              </template>
+
+            </v-data-table>
+
+          </v-card-text>
+        </v-card>
+
+      </v-tabs-window-item>
+    </v-tabs-window>
+  </v-col>
+</v-row>
+<v-row class="mb-2" v-if="(claimContext.certContext && claimContext.certContextSelectedFields.length + claimContext.certContextUnverifiedFields.length) > 0">
+  <v-col>
+    <v-tabs v-model="tabs.validityPeriod">
+      <v-tab :value="tabs.validityPeriod">Validity Period</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="tabs.validityPeriod">
+      <v-tabs-window-item :value="tabs.validityPeriod">
+        <v-card flat class="bg-grey-lighten-4">
+          <v-card-text>
+
+            <v-row>
+              <v-col>
+
+                <v-menu
+                  v-model="claimContext.claimValidFromDateMenu"
+                  transition="scale-transition"
+                  min-width="290"
+                  max-width="290"
+                >
+                  <template #activator="{ props }">
+                    <v-text-field
+                      v-bind="props"
+                      prepend-inner-icon="mdi-calendar"
+                      label="Claim Valid From Date"
+                      v-model="claimContext.claimValidFromDateText"
+                      @blur="claimContext.claimValidFromDate = parseDate(claimContext.claimValidFromDateText,true)"
+                    />
+                  </template>
+
+                  <v-date-picker
+                    v-model="claimContext.claimValidFromDate"
+                  />
+                </v-menu>
+
+              </v-col>
+
+              <v-col>
+
+                <v-menu
+                  v-model="claimContext.claimValidFromTimeMenu"
+                  :close-on-content-click="false"
+                  transition="scale-transition"
+                  max-width="290"
+                  min-width="290"
+                >
+                  <template #activator="{ props }">
+                    <v-text-field
+                      v-bind="props"
+                      v-model="claimContext.claimValidFromTime"
+                      label="Claim Valid From Time"
+                      prepend-icon="mdi-clock-time-four-outline"
+                      readonly
+                    />
+                  </template>
+
+                  <v-time-picker
+                    v-if="claimContext.claimValidFromTimeMenu"
+                    v-model="claimContext.claimValidFromTime"
+                    full-width
+                    @click:minute="setTimeCtrl('claimValidFromTimeCtrl',claimContext.claimValidFromTime)"
+                    @update:period="setTimeCtrl('claimValidFromTimeCtrl',claimContext.claimValidFromTime)"
+                  />
+                </v-menu>
+
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col>
+
+                <v-menu
+                  v-model="claimContext.claimExpirationDateMenu"
+                  transition="scale-transition"
+                  min-width="290"
+                  max-width="290"
+                >
+                  <template #activator="{ props }">
+                    <v-text-field
+                      v-bind="props"
+                      prepend-inner-icon="mdi-calendar"
+                      label="Claim Expiration Date"
+                      v-model="claimContext.claimExpirationDateText"
+                      @blur="claimContext.claimExpirationDate = parseDate(claimContext.claimExpirationDateText,true)"
+                    />
+                  </template>
+
+                  <v-date-picker
+                    v-model="claimContext.claimExpirationDate"
+                  />
+                </v-menu>
+
+              </v-col>
+
+              <v-col>
+
+                <v-menu
+                  v-model="claimContext.claimExpirationTimeMenu"
+                  :close-on-content-click="false"
+                  transition="scale-transition"
+                  max-width="290"
+                  min-width="290"
+                >
+                  <template #activator="{ props }">
+                    <v-text-field
+                      v-bind="props"
+                      v-model="claimContext.claimExpirationTime"
+                      label="Claim Expiration Time"
+                      prepend-icon="mdi-clock-time-four-outline"
+                      readonly
+                    />
+                  </template>
+
+                  <v-time-picker
+                    v-if="claimContext.claimExpirationTimeMenu"
+                    v-model="claimContext.claimExpirationTime"
+                    full-width
+                    @click:minute="setTimeCtrl('claimExpirationTimeCtrl',claimContext.claimExpirationTime)"
+                    @update:period="setTimeCtrl('claimExpirationTimeCtrl',claimContext.claimExpirationTime)"
+                  />
+                </v-menu>
+
+              </v-col>
+            </v-row>
+
+          </v-card-text>
+        </v-card>
+      </v-tabs-window-item>
+    </v-tabs-window>
+  </v-col>
+</v-row>
+<v-row class="mb-2" v-if="(claimContext.certContext && claimContext.certContextSelectedFields.length + claimContext.certContextUnverifiedFields.length) > 0 && idAnchorCerts.length > 0">
+  <v-col>
+
+    <v-tabs v-model="tabs.identity">
+      <v-tab :value="tabs.identity">Identity</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="tabs.identity">
+      <v-tabs-window-item :value="tabs.identity">
+
+        <v-card flat class="bg-grey-lighten-4">
+          <v-card-text>
+
+            <v-row>
+              <v-col>
+                <v-select
+                  label="ID Certificate"
+                  :items="idAnchorCerts"
+                  v-model="claimContext.idAnchor"
+                  item-titlex="label"
+                  item-valuex="finger_print"
+                  persistent-hint
+                  return-objectx
+                />
+              </v-col>
+            </v-row>
+
+            <v-row v-if="claimContext.idAnchor">
+              <v-col>
+                <v-checkbox
+                  label="This claim is for private use"
+                  v-model="claimContext.isForPrivatePersona"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row v-if="claimContext.idAnchor">
+              <v-col>
+                <v-text-field
+                  placeholder="Claim Receiver Id"
+                  v-model="claimContext.spUri"
+                />
+              </v-col>
+            </v-row>
+
+          </v-card-text>
+        </v-card>
+
+      </v-tabs-window-item>
+    </v-tabs-window>
+
+  </v-col>
+</v-row>
+<v-row class="mb-2" v-if="(claimContext.certContext && claimContext.certContextSelectedFields.length + claimContext.certContextUnverifiedFields.length) > 0">
+  <v-col>
+
+    <v-tabs v-model="tabs.otherSettings">
+      <v-tab :value="tabs.otherSettings">Other Settings</v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="tabs.otherSettings">
+      <v-tabs-window-item :value="tabs.otherSettings">
+
+        <v-card flat class="bg-grey-lighten-4">
+          <v-card-text>
+
+            <v-row>
+              <v-col>
+                <v-text-field
+                  placeholder="Claim Exchange Code"
+                  v-model="claimContext.secureClaimExchangeCode"
+                  @change="claimContext.secureClaimExchangeCode && claimContext.secureClaimExchangeCode.length>=6 && setDHXSPUri(claimContext.secureClaimExchangeCode)"
+                  @blur="claimContext.secureClaimExchangeCode && claimContext.secureClaimExchangeCode.length>=6 && setDHXSPUri(claimContext.secureClaimExchangeCode)"
+                />
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col>
+                <v-checkbox
+                  label="Attach Trust Chain"
+                  v-model="claimContext.includeTrustChain"
+                />
+              </v-col>
+            </v-row>
+
+          </v-card-text>
+        </v-card>
+
+      </v-tabs-window-item>
+    </v-tabs-window>
+
+  </v-col>
+</v-row>
+
+
+<v-row v-if="(claimContext.certContext && claimContext.certContextSelectedFields.length+claimContext.certContextUnverifiedFields.length)>0">
+  <v-col class="text-xs-center text-lg-center text-md-center">
+    <v-card flat classx="grey lighten-4">
+      <v-card-actions>
+        <v-spacer></v-spacer><v-btn small flatx v-on:click="signClaim(claimContext.certContext)">Sign Claim</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-col>
+</v-row>
+
+<v-row >
+  <v-col>
+	<v-card>
+      <v-card-title>Claim</v-card-title>
+      <v-card-text>
+        <div id="jsoneditor" ref="jsoneditor" style="width: 100%; height: 400px;"></div>
+      </v-card-text>
+    </v-card>
+ </v-col>
+</v-row> </v-container><v-footer solvent_object_id="1c4951658578746a88c5301ce7047d3e"><span class="white--text">{{ new Date().getFullYear() }} &copy; All Rights Reserved. <a target="_blank" class="white--text" style="text-decoration:none" href="https://cipheredtrust.com">Cipheredtrust, Inc</a>
+<!--| <a target="_blank" class="white--text" style="text-decoration:none" href="../terms.txt">Terms</a>-->
+</span></v-footer></v-main></v-app></div>
+<!--before app create include-->
+
+
+
+<script >
+
+var SolventVueJSversion ='3';
+var SolventVueMainAppMountElementId ='app';
+
+ var SolventVueMainAppPublicInstance=null;
+
+var SolventVueMainApp = null;
+
+var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion != 'undefined' && SolventVueJSversion != null && SolventVueJSversion != '2')?null:new Vuetify(),"data":function() {
+                return {
+                    tab: null,
+                    tabs: {
+                      certificateInfo: 'certificateInfo',
+                      certifiedFields: 'certifiedFields',
+                      unverifiedFields: 'unverifiedFields',
+                      validityPeriod: 'validityPeriod',
+                      identity: 'identity',
+                      otherSettings: 'otherSettings'
+                    },
+                  	userProfile:{
+                      "certificates":[],
+                      "claimExchanges":[]
+                    },
+                  	claimContext:{
+                      "certContext":null,
+                      "idAnchor":null,
+                      "spUri":null,
+                      "fieldModel": {
+                        "meaning": null,
+                        "name": null,
+                        "action": null,
+                        "value": null
+                      },
+                      "fieldHeaders": [
+                        {
+                          "text": "Label",
+                          "sortable": false,
+                          "align": "right",
+                          "value": "name"
+                        },
+                        {
+                          "text": "Value",
+                          "sortable": false,
+                          "align": "left",
+                          "value": "value"
+                        },
+                        {
+                          "text": "Meaning",
+                          "sortable": false,
+                          "align": "left",
+                          "value": "meaning"
+                        },
+                        {
+                          "text": "Action",
+                          "sortable": false,
+                          "align": "right",
+                          "value": "name"
+                        }
+                      ],
+                      "certContextUnverifiedFields":[],
+                  	  "certContextSelectedFields":[],
+                      "claimExpirationDateText":null,
+                      "docClaimExpirationDateMenu":false,
+                      "claimExpirationTimeMenu":false,
+                      "secureClaimExchangeCode":null,
+                      "claimValidFromDateMenu":false,
+                      "docClaimValidFromTimeMenu":false,
+                      "claimExpirationTime":null,
+                      "claimValidFromDate":null,
+                      "docClaimExpirationTimeMenu":false,
+                      "claimValidFromTime":null,
+                      "claimExpirationDate":null,
+                      "claimValidFromTimeText":null,
+                      "includeTrustChain":true,
+                      "docClaimValidFromDateMenu":false,
+                      "claimExpirationDateMenu":false,
+                      "claimExpirationTimeText":null,
+                      "claimValidFromDateText":null,
+                      "claimValidFromTimeMenu":false,
+                      "isForPrivatePersona":false,
+                      "dhExchange":null
+                    }
+                };
+            },"methods":{"executeClaimExchange":function(userCode,fnClaimProvider){
+        let vm = this;
+  		return new Promise(async (resolve,reject)=>{
+              const dhResp = await certisfy.executeDHExchange(userCode,fnClaimProvider,vm.claimContext.dhExchange);
+
+			  if(dhResp.status == "success")
+              {
+                  alert("The person requesting this claim can verify it with this code:"+userCode);
+                  resolve(dhResp);
+              }
+              else
+              alert(dhResp.message);
+        });
+
+},"signClaim":function(signer){
+    let vm = this;
+  
+    let fnClaimProvider = (extraFields)=>{
+      return new Promise(async (resolve,reject)=>{
+          
+          if(signer)
+          {
+              if(vm.claimContext.idAnchor && vm.claimContext.idAnchor.length != 0)
+              {
+                 if((typeof vm.claimContext.spUri == "undefined" ||  vm.claimContext.spUri == null || vm.claimContext.length == 0))
+                 {
+                     alert("Please specify a recipient for this claim.");
+                     return;
+                 }
+              }
+              
+			  const {plainFields,maskedFields,error} = await vm.createClaimFields(signer,vm.claimContext.certContextSelectedFields,vm.claimContext.certContextUnverifiedFields,extraFields);
+              if(error){
+              	 alert(error);
+                 return;
+              }
+            
+              //we only masked fields by default, you can sign plain fields if the use case calls for it.
+              let signedString = Object.assign({},{"maskedFields":maskedFields});
+
+              let spUri = vm.claimContext.spUri && vm.claimContext.spUri.trim().length>0?vm.claimContext.spUri.trim():null;
+
+              certisfy.signClaim(signer,JSON.stringify(signedString),plainFields,vm.claimContext.idAnchor,spUri,vm.claimContext.includeTrustChain,(vm.claimContext.includeTrustChain || vm.includeTrustChainInIDCertSig),(await certisfy.getVouchedClaimIdentities(plainFields)),vm.claimContext.isForPrivatePersona).
+              then(async (signature)=>{
+                  let signatureText = JSON.stringify(signature);
+                  
+                  //display claim text
+				  this.jsoneditor.set(signature);                
+                  
+                  resolve(signatureText);
+              });
+          }
+      });
+    };
+  
+    let exchangeCode = this.claimContext.secureClaimExchangeCode;
+    if(exchangeCode && exchangeCode.length>0)
+       return this.executeClaimExchange(exchangeCode,fnClaimProvider);
+    else
+       return fnClaimProvider();
+},"setDHXSPUri":function(userCode){
+   certisfy.getDHExchange(userCode).then((dhx)=>{
+      let alice_data = dhx.alice_data?JSON.parse(dhx.alice_data):null;
+      this.claimContext.spUri = alice_data && alice_data.sp_uri && alice_data.sp_uri.length>0?alice_data.sp_uri:this.claimContext.spUri;
+   });
+},"addCertClaimField":function(){
+    if(!this.claimContext.fieldModel.name || this.claimContext.fieldModel.name.length == 0){
+       alert("Please provide label for field");
+       return;
+    }
+  
+	let field = {"id":this.claimContext.certContextUnverifiedFields.length+1};
+  
+  	Object.assign(field,this.claimContext.fieldModel);
+  	Object.assign(this.claimContext.fieldModel,{"name":"","value":"","meaning":""});
+  
+  	this.claimContext.certContextUnverifiedFields.push(field);  
+},"deleteCertClaimField":function(field){ 
+  this.claimContext.certContextUnverifiedFields.splice(this.claimContext.certContextUnverifiedFields.indexOf(field),1);
+},"getDHExchange":function(userCode){
+    let vm = this;
+    
+    return new Promise((resolve,reject)=>{
+        certisfy.getDHExchange(userCode).then((resp)=>{
+			if(!resp.status || resp.status == "success"){
+                vm.claimContext.dhExchange = resp;
+                resolve(resp);
+            }
+          	else
+            alert(resp.message)
+        });
+    });
+},"createClaimFields":function(signer,certContextSelectedFields,certContextUnverifiedFields,extraFields){
+  	let vm = this;
+  
+  	return new Promise(async (resolve,reject)=>{
+		resolve(await certisfy.createStandardClaimFields(signer,
+           certContextSelectedFields,
+           certContextUnverifiedFields,
+           extraFields,
+           certisfy.createClaimDateTime(vm.claimContext.claimValidFromDateText,vm.claimContext.claimValidFromTime,"00:01"),
+           certisfy.createClaimDateTime(vm.claimContext.claimExpirationDateText,vm.claimContext.claimExpirationTime,"23:59")                                              
+        ));
+    });
+},"showDate":function (timestamp) {
+    
+    if (typeof timestamp != "undefined" && timestamp != null && !isNaN(timestamp)){
+        let date = new Date(parseInt(timestamp)).toISOString().substr(0, 10);
+        const [year, month, day] = date.split('-')
+        return `${month}/${day}/${year}`;
+    }
+  	return "";
+},"isPretermedCert":function (cert) {
+	return (parseInt(cert.validfrom_date)>new Date().getTime());
+},"isExpiredCert":function(cert,soonToBe){
+   let ONE_MONTH = (1000*60*60*24*30);
+   let isExpired = (new Date().getTime()>=parseInt(cert.expiration_date));
+  
+   if(soonToBe)
+     	return  (!isExpired && ((new Date().getTime()+ONE_MONTH)>=parseInt(cert.expiration_date)));
+  
+   return isExpired;
+},"isCertIdAnchor":function(cert)
+{
+	let vm = this;
+    for(let j=0;j<cert.csr.signedDocument.length;j++)
+    {
+        let field =  cert.csr.signedDocument[j];
+      	for(let key in certisfy.idAnchorElements)
+        {
+            if(field.plainField.name == key)
+            {
+                return true;
+            }
+        }
+    }
+  	return false;
+},"parseDate":function (date,iso) {
+  if (!date) return null
+	
+  const [month, day, year] = date.split('/');
+  
+  if(iso)
+  	return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  
+  return `${month.padStart(2, '0')}-${day.padStart(2, '0')}-${year}`;
+},"formatDate":function (date) {
+    if (!date) return null;
+  
+  	const toISOString = (date)=>{
+        let dateString = date.toLocaleString("en-US");
+        const [month,day,year] = dateString.substring(0,dateString.indexOf(",")).split('/')
+        let curDate = `${year}-${month}-${day}`
+        return curDate;
+    }
+
+    const [year, month, day] =(typeof date == "string"?date:toISOString(date)).split('-')
+    return `${month}/${day}/${year}`;
+}},"mounted":async function(){
+  		const certisfy = await import(`https://cdn.jsdelivr.net/gh/CipherTrustee/certisfy-js/js/certisfy/certisfy.js`)
+
+        window.certisfy = certisfy;
+        window.certisfy.SET_SDK_MODE(true);
+        window.certisfy.loadTrustRoots()
+
+        //this is just for demo, cors is disabled for all domains, it will be disabled
+ 		//or limited to certisfy.com in the future.
+  		window.certisfy.setAPITarget("https://certisfy.com/api-proxy-controller/")
+  
+ 		const demoProfile = {
+           "certificates": [
+                {
+                  "validfrom_date": 1769441868000,
+                  "status_message": null,
+                  "finger_print": "3e0cddfbd29f9bffcdc3c149fd768bab023fb96b",
+                  "authority_status_message": null,
+                  "authority_suspension_date": null,
+                  "revocation_date": null,
+                  "create_date": 1769441869000,
+                  "expiration_date": 2021902668000,
+                  "authority_status": null,
+                  "cert_text": "-----BEGIN CERTIFICATE-----\nMIIDuTCCA2CgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCg5Nzk1NDgz\r\nYWJmYjAwMTE2ODJiZjJhMGI0ODNiNjFkOWM0OGFhODJmMB4XDTI2MDEyNjE1Mzc0\r\nOFoXDTM0MDEyNjE1Mzc0OFowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\r\nBggqhkjOPQMBBwNCAATJvxbowI47Q7wuNCMAFRCR9fRCEC4GPMNHvwYFFNpjfuPp\r\nC0dcZtrDMADMHFAT+unqWoJCg0bsFEzLMfUBjBNKo4IChjCCAoIwHQYDVR0OBBYE\r\nFHESTnHOblAp/tWv9rbP/MGi4YkaMIICXwYDVR0RBIICVjCCAlKCggJOeyJwa2kt\r\nYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0t\r\nXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQTNr\r\naGpROXRrV3FzQ2hxd2RlRkhtXHJcblArbTZKYlJQanhrL2x6aDVBY0dZZkZxZzBy\r\nYkVOWVd1WGlENkR4ZFAwYjJtKzhQRHgzai9yajRoSVJFY3BQL1lcclxuQng3ajFo\r\nWEVnN1RSa1NWWEhJMnR4ankvS2M0Y2hYZ1A4Y2F6Q1FXOGE2RlU4MmZmOFB6WmhU\r\nd3VSaVJCMXZNQlxyXG5hSVZDcGwrMk0vaHpaUmpndHpEYWdIalBhSDdUOU1lTkx3\r\ncndWWVhneWtlcVN5d2dJSXNQY3JJdkVTU2lpcWlzXHJcbkY3NXlRL2l1N1N3cWpr\r\ndWh4aDlIRXRSNXQyU0NNdzR6ZmFKRDJtZXlsaTdkZWNuQW50WERPbjY4V1NWNkNE\r\nTzNcclxuQjFTbmtLOTI4ZlFNTHRhZm12VzFrVmk4azhMN1FFaGZNZE9Dazk3THFS\r\nSzNQclJ0UXZmYkVONjJ6VldEWVRxcFxyXG5KUUlEQVFBQlxuLS0tLS1FTkQgUFVC\r\nTElDIEtFWS0tLS0tXG4iLCJwa2ktbWF4aW11bS1kZWxlZ2F0ZXMiOiIyIiwibmFt\r\nZSI6IkRlbW8gVHJ1c3QgQW5jaG9yIiwid2Vic2l0ZSI6Imh0dHBzOi8vY2VydGlz\r\nZnkuY29tIn0wCgYIKoZIzj0EAwIDRwAwRAIgN3ot82xEo91R0tmefCSanR0RPdW2\r\nJyBQoVZ7/XORXYMCIHbgLLzq3svdZ4ZstcomNKAOkveCd5TFX8bvmPWVfHf7\n-----END CERTIFICATE-----\n",
+                  "status": null,
+                  "csr": {
+                    "id": "f9f73742de28c49064b3b2677de3e6d97191b070bd8578626bb066dbc2b21116",
+                    "createDate": "01/26/2026",
+                    "status": "success",
+                    "label": "Demo Trust Anchor",
+                    "encryptionKey": "KVWqwEMyLxPioTnsUFXyhA==",
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyb8W6MCOO0O8LjQjABUQkfX0QhAu\r\nBjzDR78GBRTaY37j6QtHXGbawzAAzBxQE/rp6lqCQoNG7BRMyzH1AYwTSg==\n-----END PUBLIC KEY-----\n",
+                    "privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgJ902VBTbV6hNhqeB\r\niLkwArB1pH9O6/UsF+gWbzcVwbehRANCAATJvxbowI47Q7wuNCMAFRCR9fRCEC4G\r\nPMNHvwYFFNpjfuPpC0dcZtrDMADMHFAT+unqWoJCg0bsFEzLMfUBjBNK\n-----END PRIVATE KEY-----\n",
+                    "asymDecryptionKey": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDeSGND22RaqwKG\r\nrB14UeY/6boltE+PGT+XOHkBwZh8WqDStsQ1ha5eIPoPF0/Rvab7w8PHeP+uPiEh\r\nERyk/9gHHuPWFcSDtNGRJVccja3GPL8pzhyFeA/xxrMJBbxroVTzZ9/w/NmFPC5G\r\nJEHW8wFohUKmX7Yz+HNlGOC3MNqAeM9oftP0x40vCvBVheDKR6pLLCAgiw9ysi8R\r\nJKKKqKwXvnJD+K7tLCqOS6HGH0cS1Hm3ZIIzDjN9okPaZ7KWLt15ycCe1cM6frxZ\r\nJXoIM7cHVKeQr3bx9Awu1p+a9bWRWLyTwvtASF8x04KT3supErc+tG1C99sQ3rbN\r\nVYNhOqklAgMBAAECggEAYfn4PxW6EzjjgSbmSn2XBr7n/OyQUNvpKqeKttp1cwKj\r\ndp12uLy20eipL/OvjByTOM/eQNM1p8Dc621WeegHeYQFGv03RHJ0GQ0ja4OLgCCQ\r\nhkXCTpZQONrDWYu8tJhFEJDNpbRd0JtpLiOXHb649TAf46O2dQvjGUGw8y5GcW98\r\nJ0aDQiEVum73q/nsXv2l46amrn4RGDin0JrekC+66Xp9SjZ/3zoPTarghH/RnUo+\r\nzGnCTdLAA5WATT0P0TaWiMRdlp9EIIpRNycjK+qgHZgBlb7PjhNM+Hk+6uPsxLRy\r\noUBGXaxL04CzySIMVQZIlUuU7g6Zq97RuXgRGLilFQKBgQD8FjnxJa/GNUxIaQ06\r\n+kOllGEpMbB0adgB5UiAZJyqIajDR6dSq5Hg5BS0LxBSMCMVayqn5pLZLzJRWc4v\r\nmeoEQIuVrBwfBHyzZzI7A0dI5tEfWqAFsa4tmd/xvCuTQNR/1Ly5nv7hXcPi9xJu\r\nJhWgXbABu9tqZhPwcM8MTzeh7wKBgQDhu7juQMy3ZDC6a2Fhrm2YCQUGtxY7zLmZ\r\nVww8SFKuo0YFA0kJwJs2rQEo9D2YzqFeSI1YYkFucCu6Ss/u9YMtlDafeesF/QnP\r\nJq05RGnfiJkptS8T1iQ4NyEraOp72g4BOxqSXUg8zwybmXMsPNbqMy0vDAnFILmM\r\n7GmWWwLqKwKBgQCUu1xmXjDuRgYC9xBaSsxcxkXpMysEFGrg+3GiZzpT2tYimYUs\r\nbpP8VzWr9dSwWTxp57fcJltgDsumWdEgHrSG27o/jbNtzYzxoKJvVQjbB2w9DpA5\r\nq9KzjwUlMDuZfvehkFflQNzrBRKNN+9E0+2Ql5Y//6F+jkmXZEeU4KxXOwKBgCbO\r\nwi1bwJYqyGHUQiqr9TV1H4MXCOCBAsuE9pqKiIRzl38XIIBnt4d/2Lo0uz5BD+cI\r\nrBws0DjvWeUuJW9ckA/O8lEagbhG11/gs1ksFNOURVixSIWthA6SE8bFw8JFK7E0\r\new38sYWaxv0dNXq+fuhGohb7h9Z3GM9MeZ6ayPZ/AoGBAI8+Pg2vSQqoIzDDlqh4\r\nP4usOnCRLTTguWf8szJz7nfC2dXVAtMw1Cyjwkb97lV/FtEcMI8uaoHf9EEJmpqR\r\nIrbXW+qZUbjgoSns7f7gZnfS5M4eDRRTu1rTrdHnDoyQLhQ0x+pWCXBHugMSu0BD\r\n0DA/gqJQMo2MrcEeA+WAV3h0\n-----END PRIVATE KEY-----\n",
+                    "asymEncryptionKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3khjQ9tkWqsChqwdeFHm\r\nP+m6JbRPjxk/lzh5AcGYfFqg0rbENYWuXiD6DxdP0b2m+8PDx3j/rj4hIREcpP/Y\r\nBx7j1hXEg7TRkSVXHI2txjy/Kc4chXgP8cazCQW8a6FU82ff8PzZhTwuRiRB1vMB\r\naIVCpl+2M/hzZRjgtzDagHjPaH7T9MeNLwrwVYXgykeqSywgIIsPcrIvESSiiqis\r\nF75yQ/iu7Swqjkuhxh9HEtR5t2SCMw4zfaJD2meyli7decnAntXDOn68WSV6CDO3\r\nB1SnkK928fQMLtafmvW1kVi8k8L7QEhfMdOCk97LqRK3PrRtQvfbEN62zVWDYTqp\r\nJQIDAQAB\n-----END PUBLIC KEY-----\n",
+                    "csrPEM": "-----BEGIN CERTIFICATE REQUEST-----\nMIIDZzCCAw0CAQAwEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIBBggqhkjO\r\nPQMBBwNCAATJvxbowI47Q7wuNCMAFRCR9fRCEC4GPMNHvwYFFNpjfuPpC0dcZtrD\r\nMADMHFAT+unqWoJCg0bsFEzLMfUBjBNKoIICmTCCApUGCSqGSIb3DQEJDjGCAoYw\r\nggKCMB0GA1UdDgQWBBRxEk5xzm5QKf7Vr/a2z/zBouGJGjCCAl8GA1UdEQSCAlYw\r\nggJSgoICTnsicGtpLWFzeW0tZW5jcnlwdGlvbi1rZXkiOiItLS0tLUJFR0lOIFBV\r\nQkxJQyBLRVktLS0tLVxuTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFN\r\nSUlCQ2dLQ0FRRUEza2hqUTl0a1dxc0NocXdkZUZIbVxyXG5QK202SmJSUGp4ay9s\r\nemg1QWNHWWZGcWcwcmJFTllXdVhpRDZEeGRQMGIybSs4UER4M2ovcmo0aElSRWNw\r\nUC9ZXHJcbkJ4N2oxaFhFZzdUUmtTVlhISTJ0eGp5L0tjNGNoWGdQOGNhekNRVzhh\r\nNkZVODJmZjhQelpoVHd1UmlSQjF2TUJcclxuYUlWQ3BsKzJNL2h6WlJqZ3R6RGFn\r\nSGpQYUg3VDlNZU5Md3J3VllYZ3lrZXFTeXdnSUlzUGNySXZFU1NpaXFpc1xyXG5G\r\nNzV5US9pdTdTd3Fqa3VoeGg5SEV0UjV0MlNDTXc0emZhSkQybWV5bGk3ZGVjbkFu\r\ndFhET242OFdTVjZDRE8zXHJcbkIxU25rSzkyOGZRTUx0YWZtdlcxa1ZpOGs4TDdR\r\nRWhmTWRPQ2s5N0xxUkszUHJSdFF2ZmJFTjYyelZXRFlUcXBcclxuSlFJREFRQUJc\r\nbi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLVxuIiwicGtpLW1heGltdW0tZGVsZWdh\r\ndGVzIjoiMiIsIm5hbWUiOiJEZW1vIFRydXN0IEFuY2hvciIsIndlYnNpdGUiOiJo\r\ndHRwczovL2NlcnRpc2Z5LmNvbSJ9MAoGCCqGSM49BAMCA0gAMEUCIQDP6LQyO52a\r\nZupGdmXjk7RsJowIGCEUJY3F2JrdBLp6rAIgCSvwXliTMzjq0E3Qw30PBvbs7W5W\r\nWr+kolmtTjJUDFo=\n-----END CERTIFICATE REQUEST-----\n",
+                    "signedDocument": [
+                      {
+                        "plainField": {
+                          "name": "pki-maximum-delegates",
+                          "value": "2"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "name",
+                          "value": "Demo Trust Anchor"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "website",
+                          "value": "https://certisfy.com"
+                        }
+                      }
+                    ],
+                    "cert_download_key": "1ebb1204e37742509ebb107e9a61dba9"
+                  },
+                  "label": "Demo Trust Anchor"
+                },
+                {
+                  "validfrom_date": 1771944879000,
+                  "status_message": null,
+                  "finger_print": "d7551d405f832e4bcf90e3d8c3fafac0322520dd",
+                  "authority_status_message": null,
+                  "authority_suspension_date": null,
+                  "revocation_date": null,
+                  "create_date": 1771944882000,
+                  "expiration_date": 2024405679000,
+                  "authority_status": null,
+                  "cert_text": "-----BEGIN CERTIFICATE-----\nMIIGGDCCBb+gAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCgzZTBjZGRm\r\nYmQyOWY5YmZmY2RjM2MxNDlmZDc2OGJhYjAyM2ZiOTZiMB4XDTI2MDIyNDE5NTQz\r\nOVoXDTM0MDIyNDE5NTQzOVowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\r\nBggqhkjOPQMBBwNCAAQE5gzf6ES6CWkLXUEPhYj9lSMFsz4gl+NvdlZzoZhqsQB8\r\noQDAEq6IScLlZth2bVaOyalfvHfgQ+khwJRDzdlao4IE5TCCBOEwHQYDVR0OBBYE\r\nFNTmCTvPpq1WZugXfCd32rAL+ABJMIIEvgYDVR0RBIIEtTCCBLGCggSteyJiYWVh\r\nODc2MDQ1MTA2YTQ3ZGMyZmRiM2VlMWE2YjhhMzgyYTFmNzI2NWU1NWY3NDU1ZjJl\r\nOGNlZGZiYTQ5NWZiIjoiNTFmODIzYmIwNWNhZjZhNjZjM2U3ZmQyODJhZjJkYjRi\r\nNWI3NThiNjBhNGI1OTRmYzVhYTMyY2U0NTRiZDc4NCIsIjMwNWFmMDc1OTliNjAz\r\nNTM0MmNjMTdlMDI2YjNiOGQ4M2ExOThhZGU3MWEzNTExZDVkNjE3OGI4ZTg3MmQ4\r\nZGYiOiI4NjMwNmIzMWNiMWI4ZTEzMzkwZjljMTFjNWM5ZjBiMTc1NGViMDJhZmYx\r\nMzk4Y2EyMDVlZWFkN2M4NDEzYmY0IiwiZjA4N2VkODlhMTJlMmNjNzRjYTQzOTA4\r\nNGM1MjgzYjczNmYyNTFlZjg5NGRiOGJjMTgzNTgzOTM0NWZmMzJhYiI6ImNjN2Fk\r\nZmJkYTZiOTgxYWY2OTdiNjIzMmJjYmVlZTdkZGEyOTcyYzZlMDE4OTJiZjUyMGI5\r\nNDMyMjUwNWExNzUiLCJkODc0Y2RkNjhjMmIyMzBiMTY3Mzk1NWFkN2NjYWNjZDhi\r\nNTE5YjI2MDc2M2EzMDBmYzAzOGM1NjhjMTVhYmQwIjoiMWVhYTAxMzcxN2IyMDE2\r\nNzRkMzk2ZjEyMWQwNmViOGM0MWU0ZDU0MWYyMmEwYTExY2Q3ODIwNTRmOTgzYmU2\r\nZCIsImY0NTNjOWYyZmZjMzc4N2RkZWExY2ExZmQ4Y2MxNTY2NDBiNmIwODM3NWE3\r\nZjdjYzExNDMzN2VhMzYxY2E1ZjYiOiJkNjVkMGNjNjJmMzNmZjcxMjY0MzViOWY1\r\nY2EzNDYyNmFhMDU3MGFmNjY1ZWJkY2JjNGMxOGQyZGMxYTEwYTUyIiwicGtpLWFz\r\neW0tZW5jcnlwdGlvbi1rZXkiOiItLS0tLUJFR0lOIFBVQkxJQyBLRVktLS0tLVxu\r\nTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUFxYWFE\r\nclBlcDJsNXFDMkpFc24xUFxyXG5ZK0lFYzJha0l0NFhXOThhRzJnK2cyd0svMEp1\r\nNVFubXFYQVlaZVd6OHJjdmtzdzdtSWZ6U1ZUY0dMbFZnQVFiXHJcbml1VVZvUVNn\r\neTZEZDFXYXpvaU5PcDV5NjlxbXVVSjZ2R00wWitnaGFvWlpFazN1dmR3RTM5aHM1\r\nOVRpZ3VQN05cclxuNGROMksra1RidGljQ2xiY1Z2Q0pDU2YxTWJCd0NZQi93VGxW\r\nc0hIOWtNOWw2YW8zSFdTdW1rR1ZWMysrQ2lWR1xyXG50ZURoYjk5VXdnUSt2cDlj\r\nS2l0ZFdidXRYWnpSS2tReDJpNCtPaktMYmc2NEFTaXc1bHRiRXlKWTZHczgvVU9Q\r\nXHJcbmhCZElxWFBpOVpPc2tvbkVia2JPMG9od2FVTFhHazV6a0FHMXQ0aWFUaG5J\r\nWWVVcmJSVm1Pb1F2NXU3L1NZdnVcclxuaXdJREFRQUJcbi0tLS0tRU5EIFBVQkxJ\r\nQyBLRVktLS0tLVxuIiwicGtpLWNlcnQtdmVyc2lvbiI6IjEuNSJ9MAoGCCqGSM49\r\nBAMCA0cAMEQCIDpUns6mRCIzh4iv9ZhdJiZS0IOhKzRvcDSxvsNXjV1nAiBfMlQp\r\nDIEbv7wUznyB3WQWgKgZNTqh07mCWzOR6AG0jw==\n-----END CERTIFICATE-----\n",
+                  "status": null,
+                  "csr": {
+                    "id": "b3ccdc13df75d8aabc6b2c0158efd84d1d4e0c7da6d974dbddc25763538ebad4",
+                    "createDate": "02/24/2026",
+                    "status": "success",
+                    "label": "Demo ID Anchor",
+                    "encryptionKey": "S48uIc68y+Gi0ZO/qaHmwg==",
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBOYM3+hEuglpC11BD4WI/ZUjBbM+\r\nIJfjb3ZWc6GYarEAfKEAwBKuiEnC5WbYdm1WjsmpX7x34EPpIcCUQ83ZWg==\n-----END PUBLIC KEY-----\n",
+                    "privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgJnQaTxBrCkYdgJEs\r\nzV0EsBesN+8A/XucxDb/HLYCK/GhRANCAAQE5gzf6ES6CWkLXUEPhYj9lSMFsz4g\r\nl+NvdlZzoZhqsQB8oQDAEq6IScLlZth2bVaOyalfvHfgQ+khwJRDzdla\n-----END PRIVATE KEY-----\n",
+                    "asymDecryptionKey": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCppoOs96naXmoL\r\nYkSyfU9j4gRzZqQi3hdb3xobaD6DbAr/Qm7lCeapcBhl5bPyty+SzDuYh/NJVNwY\r\nuVWABBuK5RWhBKDLoN3VZrOiI06nnLr2qa5Qnq8YzRn6CFqhlkSTe693ATf2Gzn1\r\nOKC4/s3h03Yr6RNu2JwKVtxW8IkJJ/UxsHAJgH/BOVWwcf2Qz2XpqjcdZK6aQZVX\r\nf74KJUa14OFv31TCBD6+n1wqK11Zu61dnNEqRDHaLj46MotuDrgBKLDmW1sTIljo\r\nazz9Q4+EF0ipc+L1k6ySicRuRs7SiHBpQtcaTnOQAbW3iJpOGchh5SttFWY6hC/m\r\n7v9Ji+6LAgMBAAECggEARzjWV/PDlZ8EgxH2yD5OaZ72AmKpbs/xW4r+wVnSwMbH\r\nmSFRQAuXkDO0snasRK3+JXFjZaZRj0w2eJS6HdvbmkSRf39baBF5gAE1UdDj0P8+\r\nCJb0zPjJhq54hN0j+2mEEayf3eSfk00b2GS1KOUkFvX5Svb3RxZd8ANGTqN9zF8Q\r\nOedS39gd3jS1CHIUXr7q4V6fsiNhwdzjKXNBskkYWuXnZXrgqqw0grqMS/hekd2G\r\nwZV36hRLej9mJ7gM69OSOrurClYdhQ0UaOaLMOe8JEf4y7EY6OaHMiejQl2bf9mW\r\niUD+O+Wu/E8agE678F6SM+gU9c7BysBX2JcBsWbo5QKBgQDeXdCs5NLwRarWol9G\r\nHxt5cnRwUFlFc0nOAq2z5Sc0KRajQPsf3dji/F2F7OVhfZdsW5ICcMk+6bpVAJAE\r\nHQJRFKq76tIa0/E3RJW/5ODRxpP6VCsluDglXM4ZWEeweMIzCNrvT4aOXYHC8c/s\r\ndbOS6YgYqa0DwB9raMAdtHGN/wKBgQDDT3+HFL1JrVb7uZBQvhEokypb+4sPe3TN\r\npCzDE39MCbu/lQ6kpu//nxODmd7VYP7PuEAnr0RAdtNAMFLjzgDspURQGgohFs8y\r\nb1CjSBAR7p8CbhKHtfVskI+MC8ba+O1sEqNuZaMElg1+wn2UQJPG7/KChC1FqXMy\r\nrX0bOFv3dQKBgFwW1CXV+fmhkHek9PnwRguMt+YPkHjvnuAfQdqfixXR8lsXvShc\r\nUsbmJsEg83nlbkFkxtoV5XIVj6JGQl5BuUTk3zRFsk+D+ICf+bhnzCd0KrJgCyJq\r\n4W2vunbKlZ3i1OIXx7uV3q600NlwFWDi+cRczI0SL+G+vgRYdD+ZC/H3AoGBALlq\r\nmm4aAU2V0xMs6lXM6ysy8y7Z0f3DvXKQnrIfq2T7hJLvpjQoC4YIdhUkmcjGyYFX\r\nsQg7urbcV9cDSV3dL0F58C1/WwhoyBFgXhR1EFSFzc0XxF20H6eOYciZUZKGaZeE\r\n5kSjFqz+6xbg+ykoWWKuXvMLGpOct7FvxGp4Cc8VAoGAPEMtSTUre7LQCGqmeEZc\r\n66EJQQqjV3teJlhhalrIOSt/h7YqA67+ZIG2e5uL1HK09tJP+0bir3MpPzSIdtQI\r\nKK5gyUqiWMKptDUgDof6PkijQn0Cga1tYV4ELDSy/9+6foRi9dwrQWtkv39iG3C2\r\ngAdwlSBK954ptSfRb6+aHgc=\n-----END PRIVATE KEY-----\n",
+                    "asymEncryptionKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqaaDrPep2l5qC2JEsn1P\r\nY+IEc2akIt4XW98aG2g+g2wK/0Ju5QnmqXAYZeWz8rcvksw7mIfzSVTcGLlVgAQb\r\niuUVoQSgy6Dd1WazoiNOp5y69qmuUJ6vGM0Z+ghaoZZEk3uvdwE39hs59TiguP7N\r\n4dN2K+kTbticClbcVvCJCSf1MbBwCYB/wTlVsHH9kM9l6ao3HWSumkGVV3++CiVG\r\nteDhb99UwgQ+vp9cKitdWbutXZzRKkQx2i4+OjKLbg64ASiw5ltbEyJY6Gs8/UOP\r\nhBdIqXPi9ZOskonEbkbO0ohwaULXGk5zkAG1t4iaThnIYeUrbRVmOoQv5u7/SYvu\r\niwIDAQAB\n-----END PUBLIC KEY-----\n",
+                    "csrPEM": "-----BEGIN CERTIFICATE REQUEST-----\nMIIFxzCCBWwCAQAwEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIBBggqhkjO\r\nPQMBBwNCAAQE5gzf6ES6CWkLXUEPhYj9lSMFsz4gl+NvdlZzoZhqsQB8oQDAEq6I\r\nScLlZth2bVaOyalfvHfgQ+khwJRDzdlaoIIE+DCCBPQGCSqGSIb3DQEJDjGCBOUw\r\nggThMB0GA1UdDgQWBBTU5gk7z6atVmboF3wnd9qwC/gASTCCBL4GA1UdEQSCBLUw\r\nggSxgoIErXsiYmFlYTg3NjA0NTEwNmE0N2RjMmZkYjNlZTFhNmI4YTM4MmExZjcy\r\nNjVlNTVmNzQ1NWYyZThjZWRmYmE0OTVmYiI6IjUxZjgyM2JiMDVjYWY2YTY2YzNl\r\nN2ZkMjgyYWYyZGI0YjViNzU4YjYwYTRiNTk0ZmM1YWEzMmNlNDU0YmQ3ODQiLCIz\r\nMDVhZjA3NTk5YjYwMzUzNDJjYzE3ZTAyNmIzYjhkODNhMTk4YWRlNzFhMzUxMWQ1\r\nZDYxNzhiOGU4NzJkOGRmIjoiODYzMDZiMzFjYjFiOGUxMzM5MGY5YzExYzVjOWYw\r\nYjE3NTRlYjAyYWZmMTM5OGNhMjA1ZWVhZDdjODQxM2JmNCIsImYwODdlZDg5YTEy\r\nZTJjYzc0Y2E0MzkwODRjNTI4M2I3MzZmMjUxZWY4OTRkYjhiYzE4MzU4MzkzNDVm\r\nZjMyYWIiOiJjYzdhZGZiZGE2Yjk4MWFmNjk3YjYyMzJiY2JlZWU3ZGRhMjk3MmM2\r\nZTAxODkyYmY1MjBiOTQzMjI1MDVhMTc1IiwiZDg3NGNkZDY4YzJiMjMwYjE2NzM5\r\nNTVhZDdjY2FjY2Q4YjUxOWIyNjA3NjNhMzAwZmMwMzhjNTY4YzE1YWJkMCI6IjFl\r\nYWEwMTM3MTdiMjAxNjc0ZDM5NmYxMjFkMDZlYjhjNDFlNGQ1NDFmMjJhMGExMWNk\r\nNzgyMDU0Zjk4M2JlNmQiLCJmNDUzYzlmMmZmYzM3ODdkZGVhMWNhMWZkOGNjMTU2\r\nNjQwYjZiMDgzNzVhN2Y3Y2MxMTQzMzdlYTM2MWNhNWY2IjoiZDY1ZDBjYzYyZjMz\r\nZmY3MTI2NDM1YjlmNWNhMzQ2MjZhYTA1NzBhZjY2NWViZGNiYzRjMThkMmRjMWEx\r\nMGE1MiIsInBraS1hc3ltLWVuY3J5cHRpb24ta2V5IjoiLS0tLS1CRUdJTiBQVUJM\r\nSUMgS0VZLS0tLS1cbk1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJ\r\nQkNnS0NBUUVBcWFhRHJQZXAybDVxQzJKRXNuMVBcclxuWStJRWMyYWtJdDRYVzk4\r\nYUcyZytnMndLLzBKdTVRbm1xWEFZWmVXejhyY3Zrc3c3bUlmelNWVGNHTGxWZ0FR\r\nYlxyXG5pdVVWb1FTZ3k2RGQxV2F6b2lOT3A1eTY5cW11VUo2dkdNMForZ2hhb1pa\r\nRWszdXZkd0UzOWhzNTlUaWd1UDdOXHJcbjRkTjJLK2tUYnRpY0NsYmNWdkNKQ1Nm\r\nMU1iQndDWUIvd1RsVnNISDlrTTlsNmFvM0hXU3Vta0dWVjMrK0NpVkdcclxudGVE\r\naGI5OVV3Z1ErdnA5Y0tpdGRXYnV0WFp6UktrUXgyaTQrT2pLTGJnNjRBU2l3NWx0\r\nYkV5Slk2R3M4L1VPUFxyXG5oQmRJcVhQaTlaT3Nrb25FYmtiTzBvaHdhVUxYR2s1\r\nemtBRzF0NGlhVGhuSVllVXJiUlZtT29RdjV1Ny9TWXZ1XHJcbml3SURBUUFCXG4t\r\nLS0tLUVORCBQVUJMSUMgS0VZLS0tLS1cbiIsInBraS1jZXJ0LXZlcnNpb24iOiIx\r\nLjUifTAKBggqhkjOPQQDAgNJADBGAiEA9NPxr6H2M5nLb8paPf7PSXhkfcTQaxeE\r\nygsCICAkrWgCIQCCu7NkjUMZ+CbU/E+8PgpNvyLzBGiSckOZdJ3vuW3hzQ==\n-----END CERTIFICATE REQUEST-----\n",
+                    "signedDocument": [
+                      {
+                        "plainField": {
+                          "name": "NATIONAL_ID",
+                          "value": "RANDOM HUMAN"
+                        },
+                        "maskedField": {
+                          "name": "baea876045106a47dc2fdb3ee1a6b8a382a1f7265e55f7455f2e8cedfba495fb",
+                          "value": "51f823bb05caf6a66c3e7fd282af2db4b5b758b60a4b594fc5aa32ce454bd784",
+                          "hmacKey": "e9d68128633043bc9710c6760edada82"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "First Name",
+                          "value": "Jane"
+                        },
+                        "maskedField": {
+                          "name": "305af07599b6035342cc17e026b3b8d83a198ade71a3511d5d6178b8e872d8df",
+                          "value": "86306b31cb1b8e13390f9c11c5c9f0b1754eb02aff1398ca205eead7c8413bf4",
+                          "hmacKey": "043dca20463d4daaa6a40f45c027f830"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Last Name",
+                          "value": "Doe"
+                        },
+                        "maskedField": {
+                          "name": "f087ed89a12e2cc74ca439084c5283b736f251ef894db8bc1835839345ff32ab",
+                          "value": "cc7adfbda6b981af697b6232bcbeee7dda2972c6e01892bf520b94322505a175",
+                          "hmacKey": "81354a9588c2478ba879f2cebc8ab24a"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Sex",
+                          "value": "Female"
+                        },
+                        "maskedField": {
+                          "name": "d874cdd68c2b230b1673955ad7ccaccd8b519b260763a300fc038c568c15abd0",
+                          "value": "1eaa013717b201674d396f121d06eb8c41e4d541f22a0a11cd782054f983be6d",
+                          "hmacKey": "676a0615bc40491ab4aa2fc2508f59a7"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "DOB",
+                          "value": "07/07/1990"
+                        },
+                        "maskedField": {
+                          "name": "f453c9f2ffc3787ddea1ca1fd8cc156640b6b08375a7f7cc114337ea361ca5f6",
+                          "value": "d65d0cc62f33ff7126435b9f5ca34626aa0570af665ebdcbc4c18d2dc1a10a52",
+                          "hmacKey": "5cb0a357e1544a71b4f16a68c32f9815"
+                        }
+                      }
+                    ],
+                    "cert_download_key": "c2bc6e30c0da46daa9a3ec4218230d0a"
+                  },
+                  "label": "Demo ID Anchor"
+                },
+                {
+                  "validfrom_date": 1771945109000,
+                  "status_message": null,
+                  "finger_print": "5cbc11bd3f13a3a5848cca8e9c5b85a038c92c33",
+                  "authority_status_message": null,
+                  "authority_suspension_date": null,
+                  "stripe_token": {
+                    "certisfy_object": true,
+                    "signedString": "{\"plainFields\":[{\"stripeToken\":\"cus_U2WoT2Doa6zSIj\"},{\"ownerId\":\"5cbc11bd3f13a3a5848cca8e9c5b85a038c92c33\"}]}timestamp=1771963121543",
+                    "signerID": "594e1fe91a54c5f9adaa8956fa79360346c18766",
+                    "signature": "kTr5A4q/hVckhy2MWT+T9UsEHqxyqOEUm5D3J8FLoZr3nozFuToAZsK6T4UCPoIyByh5aryEtsweFCYcqb+qmw==",
+                    "timestamp": 1771963121543,
+                    "debug_verified": true
+                  },
+                  "revocation_date": null,
+                  "create_date": 1771945112000,
+                  "expiration_date": 2024405909000,
+                  "authority_status": null,
+                  "cert_text": "-----BEGIN CERTIFICATE-----\nMIIGnjCCBkWgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCgzZTBjZGRm\r\nYmQyOWY5YmZmY2RjM2MxNDlmZDc2OGJhYjAyM2ZiOTZiMB4XDTI2MDIyNDE5NTgy\r\nOVoXDTM0MDIyNDE5NTgyOVowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\r\nBggqhkjOPQMBBwNCAARA5XGCx4KpPUmzKhXMURbKlBD4ZSBXQIC7uK59Z0IxOEhO\r\n9msiVqBJn/4/hAHQ6SJ5NAjVC3p2KK67JUmleY8vo4IFazCCBWcwHQYDVR0OBBYE\r\nFDEeoIBUBUJ2gHNJppPu8GZrfdtnMIIFRAYDVR0RBIIFOzCCBTeCggUzeyI1ODVi\r\nNTA3ZTZhNDNlZGIxOWNlMjQ0NDhiYzg0YzhlMzQ1Mjc1ZDZjNzBmZWI2MDQ4NTAz\r\nYzc2MzljYzA1NGNlIjoiMTNmZGExMzgwZDk0MjcxNWQwNzI5NDk1ZGJjODg3NDJh\r\nZjNkOWMzNTIxNmRhN2E1ODVkYzdmMDI0ODM4OTlkYSIsIjRmYjE5NzFmOGMxMGNh\r\nNzljMDYxYTY3NmM3YzdjNWMxMzJjODBjODE3YWUxOGMzOWZhZDZiZmQ3OWM1YWUy\r\nNTIiOiJlNzI0YTJkOWNmMTVmOGExN2QxYThkYzQwNThjZTZlOGRlNGQ2N2E5YWE1\r\nZDMxMWI2Mzg4NTEwYjViZWQ4ODE4IiwiM2VmMzEwMDM2N2MyOGZlMzBjMzE4ZTlh\r\nZGVkNWYyMTU4MDE1YTFlZWVhOWEwZTE0MDE5Mzk2MTk1YjQ4ZTFhZSI6ImIwYTZj\r\nZTA0ZGZjMmFhYzBjMjZmMGFmN2JiMjIzY2E2NTM1ZTg5M2Y4NjRjMTRkMDEwMmMw\r\nMDY1NTI1NTE2OWMiLCJhMGIyMzJmZTRhMzAwYzQwYzkxNjI2YTFhZGU3Y2ViNzhj\r\nMjhhOTk4MzJlMmM2Y2RjMmE3MWZjNzY4YjZlOTM0IjoiNGFlZjlmODU5ZDgwNTNk\r\nOTg3ZWVkMDlhNmNmMjYzZjE2MzY1NGNhZjgyYmE4M2VkOWRhNGYzMzcxNTA0MDdm\r\nMSIsImIxNzJjMThkMTMwOTA5ZTcxOGQ0NDY4NWMzNmU5NGYwN2Y5ODkyY2NhZjYx\r\nNzkwMGVhM2RhNWYwMmRjNWU1MjkiOiI1N2RmZGZhNmIyMWJkNGRkMzU2OTQ1ZDg0\r\nOGM1YmQyOGZhOTYzOTgwZjA3ZmJhMmVmZTBlMmUxMGUxOTE4YWY3IiwiOTM0NTZi\r\nYzRkN2JmMjc0OTcwZDc1OWE3ZWVjOTU5ZTI4Njg4MTU5OWM5NDRiY2I5Y2JjMGE0\r\nMDdhN2I0YmQwOSI6IjQwYWYyYjUxNmU2MTU1OTU0MTg1ZjY2MzM2ZGM5MmJjMWRi\r\nOWFmYzJkZjVmZTIwYmRhOTY0OTJmY2YzOTcyY2YiLCJwa2ktYXN5bS1lbmNyeXB0\r\naW9uLWtleSI6Ii0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJn\r\na3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQXdLMlR5d1FEK2dHV09V\r\nR1JnSzh5XHJcbmYrc2YzaUphN1Y4SzFXTkNlTzY4a28zNDFYU2F1SmF6OU56V0xq\r\naGk5RjNkSndidXl6ckMvd1FQWXpDUkJrQk1cclxuVkNlS0J6VmUzUDdyK3lONkcz\r\nZGxqYlZqV01xZ1hDK1B0c2JpM1ZjUjVCM21ibFhacXpSY29sYURmN1ZBWG1xcVxy\r\nXG55SC9UVXo2cVE3ME5jWW9DZVV6K2RKVXNOWWdJUGZxVTE5VzVicXFiOWw5dDZI\r\nbEhoSHdjYStja3RUS2xIQk9qXHJcblhOelJyTHJXbGhlRzhvSE5uMTZwazFWTkdS\r\nQ1JvL3AvZVp3ZzhJL3hPaHlpekxLOXhpZjVCam1NQ2liakFkR2FcclxuanlWU3Qz\r\nVmZaaDN6VGFCRFZtQWVndkdPZG4xNUFWWmdSSFRuRnBRaVBQbElKMEZJWmdkUFNL\r\najA3bmRYWkVMVFxyXG40d0lEQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0t\r\nXG4iLCJwa2ktY2VydC12ZXJzaW9uIjoiMS41In0wCgYIKoZIzj0EAwIDRwAwRAIg\r\nHlRVk2qLj/ONaSWlqrp7i6ZD2phXLO3kFAYjupUP2LUCIHkI42DDtUReF9FHudCS\r\nQGnh+IQtWokYyveGOoyYYXJF\n-----END CERTIFICATE-----\n",
+                  "status": null,
+                  "csr": {
+                    "id": "4c552bdc04f89884f7a6dd464e7e8948825de7111c748cabf92a3f1544b14cf2",
+                    "createDate": "02/24/2026",
+                    "status": "success",
+                    "label": "Demo Payment Method",
+                    "idAnchor": "d7551d405f832e4bcf90e3d8c3fafac0322520dd",
+                    "encryptionKey": "b6jpb0NRkGfQPSIPKBVtBw==",
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQOVxgseCqT1JsyoVzFEWypQQ+GUg\r\nV0CAu7iufWdCMThITvZrIlagSZ/+P4QB0OkieTQI1Qt6diiuuyVJpXmPLw==\n-----END PUBLIC KEY-----\n",
+                    "privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgvgmz7u2Vv4IKsf/M\r\nzirQJ5CBGHxAZ8rJiZjGUx7BYtOhRANCAARA5XGCx4KpPUmzKhXMURbKlBD4ZSBX\r\nQIC7uK59Z0IxOEhO9msiVqBJn/4/hAHQ6SJ5NAjVC3p2KK67JUmleY8v\n-----END PRIVATE KEY-----\n",
+                    "asymDecryptionKey": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDArZPLBAP6AZY5\r\nQZGArzJ/6x/eIlrtXwrVY0J47rySjfjVdJq4lrP03NYuOGL0Xd0nBu7LOsL/BA9j\r\nMJEGQExUJ4oHNV7c/uv7I3obd2WNtWNYyqBcL4+2xuLdVxHkHeZuVdmrNFyiVoN/\r\ntUBeaqrIf9NTPqpDvQ1xigJ5TP50lSw1iAg9+pTX1bluqpv2X23oeUeEfBxr5yS1\r\nMqUcE6Nc3NGsutaWF4bygc2fXqmTVU0ZEJGj+n95nCDwj/E6HKLMsr3GJ/kGOYwK\r\nJuMB0ZqPJVK3dV9mHfNNoENWYB6C8Y52fXkBVmBEdOcWlCI8+UgnQUhmB09IqPTu\r\nd1dkQtPjAgMBAAECggEAWoMP2v5DafXF3pa9JeDnTa0j1sN3yGtt2OkciFfKEOSN\r\noKR6rDzrQ5tcJ/FIFvhjE9rPYXv0rzx2iAeAERoyYRQD5Lf/HLzKGTtEuNNhSu0L\r\nQuJI65VSIzAR0Z1945XiMjG1I5Zg78fJVTxNhS0Blldp7ACTlmeggZYt7FKtdBDv\r\n9Uxt/R4q8iSpfr+XGGAdx4zvkEvuz8O2K4aJkIgwRGDXBKQwj9MZodzeuP8zo9t9\r\nSt8EEzQ1//74N0urIQmzPl4Fv5DcPBfAmndDGGtW8JCpq147GRTEM/lQGuqDjoea\r\nsYHIWw5SGgZe6xRKXhYJ96gzmtGuL9PUSe0LPwCdiQKBgQDyNqAc4pFWktTlah+B\r\nj4wvx8amXFjCq18ETRW6FiOkYwEguDmbhlRUWwhcH/yhItyYddhocjp+Vrg804Nz\r\ngeAzQJKUi77DQ8rghi9OXcmbD3nUNFXB+uPWF40TdwgKYF507iV1+Ar1tNY+Z698\r\nF2w3JWffI6p3wG8u5YaXLJmmSwKBgQDLpSfDGRYyjgggvntYzNpAUDKDpMwkhAM3\r\nAGtFzzZQ+ALi7A4A4hsWPrqeQ6if9fotopjqF3NNVyb+eZuT635DAGafzMfddqnA\r\nwVTLhTtWjG7eiqQx4vPJ+haHc6fE1NQ9fceEeE+mz6CUiimgCTNgdndb1o5gVf8s\r\nqR/OTq/pyQKBgQDgDVW4woBs0/ApsywnvfCQdj00wHG+yaVgJio186rOsmJlsORh\r\nEDZLvdWS2mfnaociZMhlfVzMZ02Pvpx3KamJ3254CHjSyZAOdzGlTS5jyEIK4Mp/\r\nYKSG80wluFLwvkpB4dU3NdZ1iO0x1tnGcShCLtDR4X0bvx9aAymoB7Kt1wKBgQCc\r\nkONbGeR5Bb21/vyyLvz1STMtBvx0bpJSLR5MU5087xC5CidSAoQ0vBGaMAZqxSCN\r\nCV9rSpA5O/Ic373/IaS3Oo2r+jMHT33/ViQtPMd8KQfsTMckG4q3FHFRvleT+tUa\r\nWaOVczI525Nn4DlUcv5vAWWO1AwugK9o1LZBVTnmEQKBgQCs6qJvW1o7eL5LVK69\r\n8Ayp4RSYEc19seCIm9VWaxk35LKfmbJua5iOmMoL3HFf6TMyq+JT0WrvgImKuqXM\r\nJ9AxjuSIfdioYZiz/JkLCAF0A3y4lsrfmsG/njJ5ra87wRl4+A5aVz8i/QvJoVnv\r\niS5IUfRgFfpB9iJflPx1CCvgJg==\n-----END PRIVATE KEY-----\n",
+                    "asymEncryptionKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwK2TywQD+gGWOUGRgK8y\r\nf+sf3iJa7V8K1WNCeO68ko341XSauJaz9NzWLjhi9F3dJwbuyzrC/wQPYzCRBkBM\r\nVCeKBzVe3P7r+yN6G3dljbVjWMqgXC+Ptsbi3VcR5B3mblXZqzRcolaDf7VAXmqq\r\nyH/TUz6qQ70NcYoCeUz+dJUsNYgIPfqU19W5bqqb9l9t6HlHhHwca+cktTKlHBOj\r\nXNzRrLrWlheG8oHNn16pk1VNGRCRo/p/eZwg8I/xOhyizLK9xif5BjmMCibjAdGa\r\njyVSt3VfZh3zTaBDVmAegvGOdn15AVZgRHTnFpQiPPlIJ0FIZgdPSKj07ndXZELT\r\n4wIDAQAB\n-----END PUBLIC KEY-----\n",
+                    "csrPEM": "-----BEGIN CERTIFICATE REQUEST-----\nMIIGSzCCBfICAQAwEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIBBggqhkjO\r\nPQMBBwNCAARA5XGCx4KpPUmzKhXMURbKlBD4ZSBXQIC7uK59Z0IxOEhO9msiVqBJ\r\nn/4/hAHQ6SJ5NAjVC3p2KK67JUmleY8voIIFfjCCBXoGCSqGSIb3DQEJDjGCBWsw\r\nggVnMB0GA1UdDgQWBBQxHqCAVAVCdoBzSaaT7vBma33bZzCCBUQGA1UdEQSCBTsw\r\nggU3goIFM3siNTg1YjUwN2U2YTQzZWRiMTljZTI0NDQ4YmM4NGM4ZTM0NTI3NWQ2\r\nYzcwZmViNjA0ODUwM2M3NjM5Y2MwNTRjZSI6IjEzZmRhMTM4MGQ5NDI3MTVkMDcy\r\nOTQ5NWRiYzg4NzQyYWYzZDljMzUyMTZkYTdhNTg1ZGM3ZjAyNDgzODk5ZGEiLCI0\r\nZmIxOTcxZjhjMTBjYTc5YzA2MWE2NzZjN2M3YzVjMTMyYzgwYzgxN2FlMThjMzlm\r\nYWQ2YmZkNzljNWFlMjUyIjoiZTcyNGEyZDljZjE1ZjhhMTdkMWE4ZGM0MDU4Y2U2\r\nZThkZTRkNjdhOWFhNWQzMTFiNjM4ODUxMGI1YmVkODgxOCIsIjNlZjMxMDAzNjdj\r\nMjhmZTMwYzMxOGU5YWRlZDVmMjE1ODAxNWExZWVlYTlhMGUxNDAxOTM5NjE5NWI0\r\nOGUxYWUiOiJiMGE2Y2UwNGRmYzJhYWMwYzI2ZjBhZjdiYjIyM2NhNjUzNWU4OTNm\r\nODY0YzE0ZDAxMDJjMDA2NTUyNTUxNjljIiwiYTBiMjMyZmU0YTMwMGM0MGM5MTYy\r\nNmExYWRlN2NlYjc4YzI4YTk5ODMyZTJjNmNkYzJhNzFmYzc2OGI2ZTkzNCI6IjRh\r\nZWY5Zjg1OWQ4MDUzZDk4N2VlZDA5YTZjZjI2M2YxNjM2NTRjYWY4MmJhODNlZDlk\r\nYTRmMzM3MTUwNDA3ZjEiLCJiMTcyYzE4ZDEzMDkwOWU3MThkNDQ2ODVjMzZlOTRm\r\nMDdmOTg5MmNjYWY2MTc5MDBlYTNkYTVmMDJkYzVlNTI5IjoiNTdkZmRmYTZiMjFi\r\nZDRkZDM1Njk0NWQ4NDhjNWJkMjhmYTk2Mzk4MGYwN2ZiYTJlZmUwZTJlMTBlMTkx\r\nOGFmNyIsIjkzNDU2YmM0ZDdiZjI3NDk3MGQ3NTlhN2VlYzk1OWUyODY4ODE1OTlj\r\nOTQ0YmNiOWNiYzBhNDA3YTdiNGJkMDkiOiI0MGFmMmI1MTZlNjE1NTk1NDE4NWY2\r\nNjMzNmRjOTJiYzFkYjlhZmMyZGY1ZmUyMGJkYTk2NDkyZmNmMzk3MmNmIiwicGtp\r\nLWFzeW0tZW5jcnlwdGlvbi1rZXkiOiItLS0tLUJFR0lOIFBVQkxJQyBLRVktLS0t\r\nLVxuTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF3\r\nSzJUeXdRRCtnR1dPVUdSZ0s4eVxyXG5mK3NmM2lKYTdWOEsxV05DZU82OGtvMzQx\r\nWFNhdUphejlOeldMamhpOUYzZEp3YnV5enJDL3dRUFl6Q1JCa0JNXHJcblZDZUtC\r\nelZlM1A3cit5TjZHM2RsamJWaldNcWdYQytQdHNiaTNWY1I1QjNtYmxYWnF6UmNv\r\nbGFEZjdWQVhtcXFcclxueUgvVFV6NnFRNzBOY1lvQ2VVeitkSlVzTllnSVBmcVUx\r\nOVc1YnFxYjlsOXQ2SGxIaEh3Y2ErY2t0VEtsSEJPalxyXG5YTnpSckxyV2xoZUc4\r\nb0hObjE2cGsxVk5HUkNSby9wL2Vad2c4SS94T2h5aXpMSzl4aWY1QmptTUNpYmpB\r\nZEdhXHJcbmp5VlN0M1ZmWmgzelRhQkRWbUFlZ3ZHT2RuMTVBVlpnUkhUbkZwUWlQ\r\nUGxJSjBGSVpnZFBTS2owN25kWFpFTFRcclxuNHdJREFRQUJcbi0tLS0tRU5EIFBV\r\nQkxJQyBLRVktLS0tLVxuIiwicGtpLWNlcnQtdmVyc2lvbiI6IjEuNSJ9MAoGCCqG\r\nSM49BAMCA0cAMEQCIAihwfTQHQIz+RKMO9j60VBqAwrN+BKDiMn/SWFJs99PAiAu\r\nY6gumqzwp2s0GXdyyXB1A+bVhGdA90QMg4a6givdpg==\n-----END CERTIFICATE REQUEST-----\n",
+                    "signedDocument": [
+                      {
+                        "plainField": {
+                          "name": "Card Number",
+                          "value": "4242424242424242"
+                        },
+                        "maskedField": {
+                          "name": "585b507e6a43edb19ce24448bc84c8e345275d6c70feb6048503c7639cc054ce",
+                          "value": "13fda1380d942715d0729495dbc88742af3d9c35216da7a585dc7f02483899da",
+                          "hmacKey": "5d689497ff824001ae764d0fa04577e9"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Expiration Month",
+                          "value": "12"
+                        },
+                        "maskedField": {
+                          "name": "4fb1971f8c10ca79c061a676c7c7c5c132c80c817ae18c39fad6bfd79c5ae252",
+                          "value": "e724a2d9cf15f8a17d1a8dc4058ce6e8de4d67a9aa5d311b6388510b5bed8818",
+                          "hmacKey": "98c8446ce3bc42f2a70fd97478f25d5f"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Expiration Year",
+                          "value": "35"
+                        },
+                        "maskedField": {
+                          "name": "3ef3100367c28fe30c318e9aded5f2158015a1eeea9a0e14019396195b48e1ae",
+                          "value": "b0a6ce04dfc2aac0c26f0af7bb223ca6535e893f864c14d0102c00655255169c",
+                          "hmacKey": "85a8db7ed1054416af79f3d44c221334"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "CVC",
+                          "value": "123"
+                        },
+                        "maskedField": {
+                          "name": "a0b232fe4a300c40c91626a1ade7ceb78c28a99832e2c6cdc2a71fc768b6e934",
+                          "value": "4aef9f859d8053d987eed09a6cf263f163654caf82ba83ed9da4f337150407f1",
+                          "hmacKey": "f26bbd92a580418a9d3b285d5be18a44"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "pki-id-link",
+                          "value": "51763f4511273e9717f5dea0d1217c38f7742a9dde8bcadaf8dc9260e7b52af4,1771962926545"
+                        },
+                        "maskedField": {
+                          "name": "b172c18d130909e718d44685c36e94f07f9892ccaf617900ea3da5f02dc5e529",
+                          "value": "57dfdfa6b21bd4dd356945d848c5bd28fa963980f07fba2efe0e2e10e1918af7",
+                          "hmacKey": "4fad7589e129465e899a7dc8aa67e265"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "pki-private-persona",
+                          "value": "yes"
+                        },
+                        "maskedField": {
+                          "name": "93456bc4d7bf274970d759a7eec959e286881599c944bcb9cbc0a407a7b4bd09",
+                          "value": "40af2b516e6155954185f66336dc92bc1db9afc2df5fe20bda96492fcf3972cf",
+                          "hmacKey": "d3a297e681db401aa98f5c87a15698da"
+                        }
+                      }
+                    ],
+                    "cert_download_key": "e434caaa0f994c888a490f397582919e"
+                  },
+                  "label": "Demo Payment Method",
+                  "paymentMethod": {
+                    "certisfy_object": true,
+                    "signedString": "{\"plainFields\":[{\"stripeToken\":\"cus_U2WoT2Doa6zSIj\"},{\"sourceMethodSignature\":\"{\\\"id\\\":\\\"84d68e2283754b90970d100278e101ba\\\",\\\"certisfy_object\\\":true,\\\"timestamp\\\":1771963192014,\\\"signerID\\\":\\\"5cbc11bd3f13a3a5848cca8e9c5b85a038c92c33\\\",\\\"signedString\\\":\\\"{\\\\\\\"maskedFields\\\\\\\":[{\\\\\\\"31640eae2267a9f1b9631728dec1b6a5f6191064c4126a58f194bc037ddf1bc3\\\\\\\":\\\\\\\"fd350e1410e0b4aaaa8b642f3c1fb55870766506af296230f78f22f574587997\\\\\\\"},{\\\\\\\"b172c18d130909e718d44685c36e94f07f9892ccaf617900ea3da5f02dc5e529\\\\\\\":\\\\\\\"57dfdfa6b21bd4dd356945d848c5bd28fa963980f07fba2efe0e2e10e1918af7\\\\\\\"},{\\\\\\\"9b2d58869fc72518ab7d483ea5f452b210c52cfebd66a978e923feadef8095b8\\\\\\\":\\\\\\\"6ce9dac4765db36ad9890bdb7a2069b96686a4bd282b296d3be56c8bc4b9358b\\\\\\\"}]}timestamp=1771963192014\\\",\\\"trustChain\\\":{\\\"certs\\\":[{\\\"validfrom_date\\\":1771945109000,\\\"status_message\\\":null,\\\"finger_print\\\":\\\"5cbc11bd3f13a3a5848cca8e9c5b85a038c92c33\\\",\\\"authority_status_message\\\":null,\\\"authority_suspension_date\\\":null,\\\"revocation_date\\\":null,\\\"create_date\\\":1771945112000,\\\"expiration_date\\\":2024405909000,\\\"authority_status\\\":null,\\\"cert_text\\\":\\\"-----BEGIN CERTIFICATE-----\\\\nMIIGnjCCBkWgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCgzZTBjZGRm\\\\r\\\\nYmQyOWY5YmZmY2RjM2MxNDlmZDc2OGJhYjAyM2ZiOTZiMB4XDTI2MDIyNDE5NTgy\\\\r\\\\nOVoXDTM0MDIyNDE5NTgyOVowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\\\\r\\\\nBggqhkjOPQMBBwNCAARA5XGCx4KpPUmzKhXMURbKlBD4ZSBXQIC7uK59Z0IxOEhO\\\\r\\\\n9msiVqBJn/4/hAHQ6SJ5NAjVC3p2KK67JUmleY8vo4IFazCCBWcwHQYDVR0OBBYE\\\\r\\\\nFDEeoIBUBUJ2gHNJppPu8GZrfdtnMIIFRAYDVR0RBIIFOzCCBTeCggUzeyI1ODVi\\\\r\\\\nNTA3ZTZhNDNlZGIxOWNlMjQ0NDhiYzg0YzhlMzQ1Mjc1ZDZjNzBmZWI2MDQ4NTAz\\\\r\\\\nYzc2MzljYzA1NGNlIjoiMTNmZGExMzgwZDk0MjcxNWQwNzI5NDk1ZGJjODg3NDJh\\\\r\\\\nZjNkOWMzNTIxNmRhN2E1ODVkYzdmMDI0ODM4OTlkYSIsIjRmYjE5NzFmOGMxMGNh\\\\r\\\\nNzljMDYxYTY3NmM3YzdjNWMxMzJjODBjODE3YWUxOGMzOWZhZDZiZmQ3OWM1YWUy\\\\r\\\\nNTIiOiJlNzI0YTJkOWNmMTVmOGExN2QxYThkYzQwNThjZTZlOGRlNGQ2N2E5YWE1\\\\r\\\\nZDMxMWI2Mzg4NTEwYjViZWQ4ODE4IiwiM2VmMzEwMDM2N2MyOGZlMzBjMzE4ZTlh\\\\r\\\\nZGVkNWYyMTU4MDE1YTFlZWVhOWEwZTE0MDE5Mzk2MTk1YjQ4ZTFhZSI6ImIwYTZj\\\\r\\\\nZTA0ZGZjMmFhYzBjMjZmMGFmN2JiMjIzY2E2NTM1ZTg5M2Y4NjRjMTRkMDEwMmMw\\\\r\\\\nMDY1NTI1NTE2OWMiLCJhMGIyMzJmZTRhMzAwYzQwYzkxNjI2YTFhZGU3Y2ViNzhj\\\\r\\\\nMjhhOTk4MzJlMmM2Y2RjMmE3MWZjNzY4YjZlOTM0IjoiNGFlZjlmODU5ZDgwNTNk\\\\r\\\\nOTg3ZWVkMDlhNmNmMjYzZjE2MzY1NGNhZjgyYmE4M2VkOWRhNGYzMzcxNTA0MDdm\\\\r\\\\nMSIsImIxNzJjMThkMTMwOTA5ZTcxOGQ0NDY4NWMzNmU5NGYwN2Y5ODkyY2NhZjYx\\\\r\\\\nNzkwMGVhM2RhNWYwMmRjNWU1MjkiOiI1N2RmZGZhNmIyMWJkNGRkMzU2OTQ1ZDg0\\\\r\\\\nOGM1YmQyOGZhOTYzOTgwZjA3ZmJhMmVmZTBlMmUxMGUxOTE4YWY3IiwiOTM0NTZi\\\\r\\\\nYzRkN2JmMjc0OTcwZDc1OWE3ZWVjOTU5ZTI4Njg4MTU5OWM5NDRiY2I5Y2JjMGE0\\\\r\\\\nMDdhN2I0YmQwOSI6IjQwYWYyYjUxNmU2MTU1OTU0MTg1ZjY2MzM2ZGM5MmJjMWRi\\\\r\\\\nOWFmYzJkZjVmZTIwYmRhOTY0OTJmY2YzOTcyY2YiLCJwa2ktYXN5bS1lbmNyeXB0\\\\r\\\\naW9uLWtleSI6Ii0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJn\\\\r\\\\na3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQXdLMlR5d1FEK2dHV09V\\\\r\\\\nR1JnSzh5XHJcbmYrc2YzaUphN1Y4SzFXTkNlTzY4a28zNDFYU2F1SmF6OU56V0xq\\\\r\\\\naGk5RjNkSndidXl6ckMvd1FQWXpDUkJrQk1cclxuVkNlS0J6VmUzUDdyK3lONkcz\\\\r\\\\nZGxqYlZqV01xZ1hDK1B0c2JpM1ZjUjVCM21ibFhacXpSY29sYURmN1ZBWG1xcVxy\\\\r\\\\nXG55SC9UVXo2cVE3ME5jWW9DZVV6K2RKVXNOWWdJUGZxVTE5VzVicXFiOWw5dDZI\\\\r\\\\nbEhoSHdjYStja3RUS2xIQk9qXHJcblhOelJyTHJXbGhlRzhvSE5uMTZwazFWTkdS\\\\r\\\\nQ1JvL3AvZVp3ZzhJL3hPaHlpekxLOXhpZjVCam1NQ2liakFkR2FcclxuanlWU3Qz\\\\r\\\\nVmZaaDN6VGFCRFZtQWVndkdPZG4xNUFWWmdSSFRuRnBRaVBQbElKMEZJWmdkUFNL\\\\r\\\\najA3bmRYWkVMVFxyXG40d0lEQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0t\\\\r\\\\nXG4iLCJwa2ktY2VydC12ZXJzaW9uIjoiMS41In0wCgYIKoZIzj0EAwIDRwAwRAIg\\\\r\\\\nHlRVk2qLj/ONaSWlqrp7i6ZD2phXLO3kFAYjupUP2LUCIHkI42DDtUReF9FHudCS\\\\r\\\\nQGnh+IQtWokYyveGOoyYYXJF\\\\n-----END CERTIFICATE-----\\\\n\\\",\\\"status\\\":null},{\\\"validfrom_date\\\":1769423868000,\\\"status_message\\\":null,\\\"finger_print\\\":\\\"3e0cddfbd29f9bffcdc3c149fd768bab023fb96b\\\",\\\"authority_status_message\\\":null,\\\"authority_suspension_date\\\":null,\\\"revocation_date\\\":null,\\\"create_date\\\":1769428411000,\\\"expiration_date\\\":2021884668000,\\\"authority_status\\\":null,\\\"cert_text\\\":\\\"-----BEGIN CERTIFICATE-----\\\\nMIIDuTCCA2CgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCg5Nzk1NDgz\\\\r\\\\nYWJmYjAwMTE2ODJiZjJhMGI0ODNiNjFkOWM0OGFhODJmMB4XDTI2MDEyNjE1Mzc0\\\\r\\\\nOFoXDTM0MDEyNjE1Mzc0OFowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\\\\r\\\\nBggqhkjOPQMBBwNCAATJvxbowI47Q7wuNCMAFRCR9fRCEC4GPMNHvwYFFNpjfuPp\\\\r\\\\nC0dcZtrDMADMHFAT+unqWoJCg0bsFEzLMfUBjBNKo4IChjCCAoIwHQYDVR0OBBYE\\\\r\\\\nFHESTnHOblAp/tWv9rbP/MGi4YkaMIICXwYDVR0RBIICVjCCAlKCggJOeyJwa2kt\\\\r\\\\nYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0t\\\\r\\\\nXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQTNr\\\\r\\\\naGpROXRrV3FzQ2hxd2RlRkhtXHJcblArbTZKYlJQanhrL2x6aDVBY0dZZkZxZzBy\\\\r\\\\nYkVOWVd1WGlENkR4ZFAwYjJtKzhQRHgzai9yajRoSVJFY3BQL1lcclxuQng3ajFo\\\\r\\\\nWEVnN1RSa1NWWEhJMnR4ankvS2M0Y2hYZ1A4Y2F6Q1FXOGE2RlU4MmZmOFB6WmhU\\\\r\\\\nd3VSaVJCMXZNQlxyXG5hSVZDcGwrMk0vaHpaUmpndHpEYWdIalBhSDdUOU1lTkx3\\\\r\\\\ncndWWVhneWtlcVN5d2dJSXNQY3JJdkVTU2lpcWlzXHJcbkY3NXlRL2l1N1N3cWpr\\\\r\\\\ndWh4aDlIRXRSNXQyU0NNdzR6ZmFKRDJtZXlsaTdkZWNuQW50WERPbjY4V1NWNkNE\\\\r\\\\nTzNcclxuQjFTbmtLOTI4ZlFNTHRhZm12VzFrVmk4azhMN1FFaGZNZE9Dazk3THFS\\\\r\\\\nSzNQclJ0UXZmYkVONjJ6VldEWVRxcFxyXG5KUUlEQVFBQlxuLS0tLS1FTkQgUFVC\\\\r\\\\nTElDIEtFWS0tLS0tXG4iLCJwa2ktbWF4aW11bS1kZWxlZ2F0ZXMiOiIyIiwibmFt\\\\r\\\\nZSI6IkRlbW8gVHJ1c3QgQW5jaG9yIiwid2Vic2l0ZSI6Imh0dHBzOi8vY2VydGlz\\\\r\\\\nZnkuY29tIn0wCgYIKoZIzj0EAwIDRwAwRAIgN3ot82xEo91R0tmefCSanR0RPdW2\\\\r\\\\nJyBQoVZ7/XORXYMCIHbgLLzq3svdZ4ZstcomNKAOkveCd5TFX8bvmPWVfHf7\\\\n-----END CERTIFICATE-----\\\\n\\\",\\\"status\\\":null},{\\\"validfrom_date\\\":1765106109000,\\\"status_message\\\":null,\\\"finger_print\\\":\\\"9795483abfb0011682bf2a0b483b61d9c48aa82f\\\",\\\"authority_status_message\\\":null,\\\"authority_suspension_date\\\":null,\\\"revocation_date\\\":null,\\\"create_date\\\":1765197860000,\\\"expiration_date\\\":2019726909000,\\\"authority_status\\\":null,\\\"cert_text\\\":\\\"-----BEGIN CERTIFICATE-----\\\\nMIIDrDCCA1GgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCg3NjBjNTdm\\\\r\\\\nNTg2ZTg2NWI5NjcyZmQzMGYxOWU2OWU1NzYzOTc3MzVlMB4XDTI1MTIwNzE2MTUw\\\\r\\\\nOVoXDTM0MDEwMTE2MTUwOVowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\\\\r\\\\nBggqhkjOPQMBBwNCAARRzBO/IOeph5Exmh1KLT6BABLOxI7SGRq3Zmmwo/E/mqdy\\\\r\\\\n3w4Pt9Niczv2neVtBy7A4JfLxLsMGtVIpaYLAXIyo4ICdzCCAnMwHQYDVR0OBBYE\\\\r\\\\nFMiw4+/n/qq5rb8Eu3aBcSpoqoDuMIICUAYDVR0RBIICRzCCAkOCggI/eyJwa2kt\\\\r\\\\nYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0t\\\\r\\\\nXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQXBZ\\\\r\\\\nbnZUVm1RaHg5SXNoWjFFK3loXHJcblVSODBPTHdkODFKaGtyL0QyRG1rTVRaVkhR\\\\r\\\\nZ0s0eE5STXg1em5HUzEzYVFaQmxBbWlVS1pwaFByZW9oRzE5S0xcclxuT3N1SzhW\\\\r\\\\neEpsb3oyK3F0Vko4c1RoNlgvSGJyUUE3d08yc3ltNkdUV2ZCZmRlaTFudFcyUVN3\\\\r\\\\nSVJaK2hrVmhFY1xyXG4zSzBsK2ZhdG5uN1huTVlZbFZ0VmZRZnZrMUJnak1rMnds\\\\r\\\\nVWtqZER4N1VJWE1wQ04rVU0xdEx0dXYyUUFYY1JjXHJcblhJQjZsNHlMMEhnMko0\\\\r\\\\nTGNXK1pmVG5CVzMvOEVnaEtIVTlhTUsvN0Z4V1hsMWgvR05paFE0VEFOcmdvdTMz\\\\r\\\\nTnlcclxuSThVQUpoemhtMEF6VHlUN1BsVGNiMGRyeEF1MSt4TUYxY1NHN1RkTk5X\\\\r\\\\nRzUzbjNmdnBIcHVDZVIrcFNETC9yRlxyXG5Dd0lEQVFBQlxuLS0tLS1FTkQgUFVC\\\\r\\\\nTElDIEtFWS0tLS0tXG4iLCJQdXJwb3NlIjoiU2VsZi1WYWxpZGF0ZSBUcnVzdCBB\\\\r\\\\nbmNob3IgUm9vdCIsInBraS1tYXhpbXVtLWRlbGVnYXRlcyI6IjgwIn0wCgYIKoZI\\\\r\\\\nzj0EAwIDSQAwRgIhAICxCP9tCHraNv/OvA9j38pCgcGOnrunUf/rsjpnX5MCAiEA\\\\r\\\\n48L+pjob80jEGNOr0tGvN+1Vywb6ezcxSvtDw4HIuug=\\\\n-----END CERTIFICATE-----\\\\n\\\",\\\"status\\\":null},{\\\"validfrom_date\\\":1705322243000,\\\"status_message\\\":\\\"\\\",\\\"finger_print\\\":\\\"760c57f586e865b9672fd30f19e69e576397735e\\\",\\\"authority_status_message\\\":\\\"\\\",\\\"authority_suspension_date\\\":1705607378000,\\\"revocation_date\\\":1705695296000,\\\"create_date\\\":1705322245000,\\\"expiration_date\\\":2020941443000,\\\"authority_status\\\":\\\"good\\\",\\\"cert_text\\\":\\\"-----BEGIN CERTIFICATE-----\\\\nMIICXTCCAgOgAwIBAgIFAMD/3t8wCgYIKoZIzj0EAwIwMzExMC8GA1UEAwwoNTk0\\\\nZTFmZTkxYTU0YzVmOWFkYWE4OTU2ZmE3OTM2MDM0NmMxODc2NjAeFw0yNDAxMTUx\\\\nNzM3MjNaFw0zNDAxMTUxNzM3MjNaMBAxDjAMBgNVBAMMBUh1bWFuMFkwEwYHKoZI\\\\nzj0CAQYIKoZIzj0DAQcDQgAEzS1n6wzip3+IaQzJjQUPxPbAaXr1gQGtwe1XWkAX\\\\nzShbQjvhgiQK5Gv+wMplFUacmG6cigthE5/ZgN1fyUC4HqOCASUwggEhMAkGA1Ud\\\\nEwQCMAAwZAYDVR0OBF0EWzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABM0tZ+sM\\\\n4qd/iGkMyY0FD8T2wGl69YEBrcHtV1pAF80oW0I74YIkCuRr/sDKZRVGnJhunIoL\\\\nYROf2YDdX8lAuB4wIgYDVR0jBBswGaEUpBIwEDEOMAwGA1UEAwwFSHVtYW6CAQEw\\\\ngYkGA1UdEQSBgTB/gn17InBraS10cnVzdC1hbmNob3ItcmV2aWV3ZXIiOiI1OTRl\\\\nMWZlOTFhNTRjNWY5YWRhYTg5NTZmYTc5MzYwMzQ2YzE4NzY2IiwicGtpLW1heGlt\\\\ndW0tZGVsZWdhdGVzIjoiMTAwIiwibGFib3ItY29kZSI6IjExLTEwMTEifTAKBggq\\\\nhkjOPQQDAgNIADBFAiEAh5ocna0DtiTrgwWDedIGHjRFZF0i5Mb/mNSdf1+EgkQC\\\\nIAUYj5zAlgwu8o0zPFGlH0vcapIpTGO78fyWShzLuw5f\\\\n-----END CERTIFICATE-----\\\\n\\\",\\\"status\\\":\\\"good\\\"},{\\\"validfrom_date\\\":1705305628000,\\\"status_message\\\":null,\\\"finger_print\\\":\\\"594e1fe91a54c5f9adaa8956fa79360346c18766\\\",\\\"authority_status_message\\\":null,\\\"authority_suspension_date\\\":null,\\\"revocation_date\\\":null,\\\"create_date\\\":1705318235000,\\\"expiration_date\\\":2020924828000,\\\"authority_status\\\":null,\\\"cert_text\\\":\\\"-----BEGIN CERTIFICATE-----\\\\nMIIDZzCCAwygAwIBAgIBATAKBggqhkjOPQQDAjAVMRMwEQYDVQQDDApQcm9tZXRo\\\\r\\\\nZXVzMB4XDTI0MDExNTEzMDAyOFoXDTM0MDExNTEzMDAyOFowEDEOMAwGA1UEAwwF\\\\r\\\\nSHVtYW4wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARi6BmjmSfz5KlOI0KXxkKL\\\\r\\\\nl7iYT+WZySxC7ImZgvAgY4ofyLU+LFvjjYu6+SQRH/XphtqNzeP6YMBDNLOY6AzZ\\\\r\\\\no4ICUDCCAkwwHQYDVR0OBBYEFFB00DwJh9ngK9xLHSa4EvWw8yOwMIICKQYDVR0R\\\\r\\\\nBIICIDCCAhyCggIYeyJwa2ktYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0tQkVH\\\\r\\\\nSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9D\\\\r\\\\nQVE4QU1JSUJDZ0tDQVFFQTJ0TnpwczlVNVNqN3E1Sy9adWJKXHJcbkVoaDVrOG9Y\\\\r\\\\nNHc0Vnk2RVhHT1lvazZVSmU3YVJ5aTgwZnBiYTRJMUtmTWpKUW5PSjUzQ2pmZWdK\\\\r\\\\nVzVud2J0OUFcclxuVnY5N2lGa0xCZlVzOTF0eVJBeTFjRy90MWdZMDhOM05naUdH\\\\r\\\\nUXNTeEI1dDRTUXVGMHNPTFB3NHhVTWYzNktZNlxyXG5DejlBMlYyNjhuZE8rdFJi\\\\r\\\\nTDl5UXN2Uk13c3Brd2hpcDJOQjhyemZFYkJxNngvV05zeXM5NXA4aUo3VEJRNkh5\\\\r\\\\nXHJcbkhVTkJaWEJyRVJFRDc2ZmJ3V0R1UFRaZzRYY3RqMjV5T25KNEE0SGpjNFZY\\\\r\\\\nU1dFeFhZWk1aY21HVytzaW0yNzNcclxuMTFoZTlRNkMxckluNmdBU3B3ZnV0N2lr\\\\r\\\\nT2lER291VlR0Z0UwbnFtbnc0cTJ5SU52bDU3NHo4Qys4S0pvTlgzRFxyXG5zUUlE\\\\r\\\\nQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iLCJ1cmwiOiJodHRwczov\\\\r\\\\nL2NpcGhlcmVkdHJ1c3QuY29tIn0wCgYIKoZIzj0EAwIDSQAwRgIhAKcvou9BeWIm\\\\r\\\\nktwVPZsSS8NNhduA2RDuDNpKsJn4vW8ZAiEA/uVqXLYavURiOlvy8iUFqnI0chvG\\\\r\\\\ndJg96BTWTcaQy6A=\\\\n-----END CERTIFICATE-----\\\\n\\\",\\\"status\\\":null}],\\\"isValid\\\":true,\\\"isTrustworthy\\\":true,\\\"signature\\\":{\\\"certisfy_object\\\":true,\\\"signedString\\\":\\\"5cbc11bd3f13a3a5848cca8e9c5b85a038c92c333e0cddfbd29f9bffcdc3c149fd768bab023fb96b9795483abfb0011682bf2a0b483b61d9c48aa82f760c57f586e865b9672fd30f19e69e576397735e594e1fe91a54c5f9adaa8956fa79360346c18766truetruetimestamp=1771963192417\\\",\\\"signerID\\\":\\\"594e1fe91a54c5f9adaa8956fa79360346c18766\\\",\\\"signature\\\":\\\"eoEpERsdYle/8Ckq2h9Ooyz5q36L2ApJtl4v6nCXIsAqORNcR+lnyqq42SmkwaW1YKjtrrjp9fvR/BsoRLnwsQ==\\\",\\\"timestamp\\\":1771963192417,\\\"trustChain\\\":{\\\"certs\\\":[{\\\"validfrom_date\\\":1705305628000,\\\"status_message\\\":null,\\\"finger_print\\\":\\\"594e1fe91a54c5f9adaa8956fa79360346c18766\\\",\\\"authority_status_message\\\":null,\\\"authority_suspension_date\\\":null,\\\"revocation_date\\\":null,\\\"create_date\\\":1705318235000,\\\"expiration_date\\\":2020924828000,\\\"authority_status\\\":null,\\\"cert_text\\\":\\\"-----BEGIN CERTIFICATE-----\\\\nMIIDZzCCAwygAwIBAgIBATAKBggqhkjOPQQDAjAVMRMwEQYDVQQDDApQcm9tZXRo\\\\r\\\\nZXVzMB4XDTI0MDExNTEzMDAyOFoXDTM0MDExNTEzMDAyOFowEDEOMAwGA1UEAwwF\\\\r\\\\nSHVtYW4wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARi6BmjmSfz5KlOI0KXxkKL\\\\r\\\\nl7iYT+WZySxC7ImZgvAgY4ofyLU+LFvjjYu6+SQRH/XphtqNzeP6YMBDNLOY6AzZ\\\\r\\\\no4ICUDCCAkwwHQYDVR0OBBYEFFB00DwJh9ngK9xLHSa4EvWw8yOwMIICKQYDVR0R\\\\r\\\\nBIICIDCCAhyCggIYeyJwa2ktYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0tQkVH\\\\r\\\\nSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9D\\\\r\\\\nQVE4QU1JSUJDZ0tDQVFFQTJ0TnpwczlVNVNqN3E1Sy9adWJKXHJcbkVoaDVrOG9Y\\\\r\\\\nNHc0Vnk2RVhHT1lvazZVSmU3YVJ5aTgwZnBiYTRJMUtmTWpKUW5PSjUzQ2pmZWdK\\\\r\\\\nVzVud2J0OUFcclxuVnY5N2lGa0xCZlVzOTF0eVJBeTFjRy90MWdZMDhOM05naUdH\\\\r\\\\nUXNTeEI1dDRTUXVGMHNPTFB3NHhVTWYzNktZNlxyXG5DejlBMlYyNjhuZE8rdFJi\\\\r\\\\nTDl5UXN2Uk13c3Brd2hpcDJOQjhyemZFYkJxNngvV05zeXM5NXA4aUo3VEJRNkh5\\\\r\\\\nXHJcbkhVTkJaWEJyRVJFRDc2ZmJ3V0R1UFRaZzRYY3RqMjV5T25KNEE0SGpjNFZY\\\\r\\\\nU1dFeFhZWk1aY21HVytzaW0yNzNcclxuMTFoZTlRNkMxckluNmdBU3B3ZnV0N2lr\\\\r\\\\nT2lER291VlR0Z0UwbnFtbnc0cTJ5SU52bDU3NHo4Qys4S0pvTlgzRFxyXG5zUUlE\\\\r\\\\nQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iLCJ1cmwiOiJodHRwczov\\\\r\\\\nL2NpcGhlcmVkdHJ1c3QuY29tIn0wCgYIKoZIzj0EAwIDSQAwRgIhAKcvou9BeWIm\\\\r\\\\nktwVPZsSS8NNhduA2RDuDNpKsJn4vW8ZAiEA/uVqXLYavURiOlvy8iUFqnI0chvG\\\\r\\\\ndJg96BTWTcaQy6A=\\\\n-----END CERTIFICATE-----\\\\n\\\",\\\"status\\\":null}],\\\"isValid\\\":true,\\\"isTrustworthy\\\":true,\\\"signature\\\":{\\\"certisfy_object\\\":true,\\\"signedString\\\":\\\"594e1fe91a54c5f9adaa8956fa79360346c18766truetruetimestamp=1771963192475\\\",\\\"signerID\\\":\\\"594e1fe91a54c5f9adaa8956fa79360346c18766\\\",\\\"signature\\\":\\\"hTSE0yCfxPpsEBQNZoErUEPK1oXWS+wRSSa3t8zcdmmWzaSF8HFmlO63HuBoa0Rvu4pBvc/5WUawIfGt/BzL/Q==\\\",\\\"timestamp\\\":1771963192475,\\\"debug_verified\\\":true}},\\\"debug_verified\\\":true}},\\\"signature\\\":\\\"EVgmPWMJaRidleR672k/pHNWNz6slir9iLn65aZFu790Jy9aUZ4ieB2zoAvmvL7goCteTqSQFx33NDrrl3QhKA==\\\",\\\"pki-identity\\\":{\\\"pki-sp-identifier\\\":\\\"e79b6aa4886abea4d56eeefa014e039b0fa6aa5ba6d1021c80847101cca65a5a\\\",\\\"pki-sp-id-anchor-token-persona\\\":\\\"private\\\",\\\"pki-sp-id-anchor-token\\\":\\\"fdbe63863e9e7e59678a93665855adac7caa03f574a909356f6698c2861f5aa0\\\",\\\"pki-sp-id-anchor-certisfy-public-token\\\":\\\"50484ef34fe7cf65e91cd44acf58188f677b9b4809f674678f54933f09d4af16\\\",\\\"pki-sp-id-anchor-certisfy-private-token\\\":\\\"9d9e02bdee98d32e1796e24bef50f8f74bbb268ce86aee0a99ca86468eb64435\\\",\\\"pki-owner-id-info-cloak\\\":\\\"3e565b79c13a0be49197a80a67e0b592685bb2eec988e1bd28bcea585abbbd54,1771963194696\\\",\\\"pki-id-anchor-element\\\":\\\"NATIONAL_ID\\\",\\\"pki-cosignature\\\":{\\\"certisfy_object\\\":true,\\\"signedString\\\":\\\"privateNATIONAL_IDfdbe63863e9e7e59678a93665855adac7caa03f574a909356f6698c2861f5aa0e79b6aa4886abea4d56eeefa014e039b0fa6aa5ba6d1021c80847101cca65a5aEVgmPWMJaRidleR672k/pHNWNz6slir9iLn65aZFu790Jy9aUZ4ieB2zoAvmvL7goCteTqSQFx33NDrrl3QhKA==timestamp=1771963194706\\\",\\\"signerID\\\":\\\"594e1fe91a54c5f9adaa8956fa79360346c18766\\\",\\\"signature\\\":\\\"eWzvRbpJtSlf5HVgVm5BVULuRnrwYey/kN2rayJbp4REVc6ZKGRPuOBwJWc7/K8n8inXby085B5svmMfTYM/LA==\\\",\\\"timestamp\\\":1771963194706,\\\"debug_verified\\\":true}},\\\"plainFields\\\":[{\\\"certisfy-stripe-token\\\":\\\"{\\\\\\\"certisfy_object\\\\\\\":true,\\\\\\\"signedString\\\\\\\":\\\\\\\"{\\\\\\\\\\\\\\\"plainFields\\\\\\\\\\\\\\\":[{\\\\\\\\\\\\\\\"stripeToken\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"cus_U2WoT2Doa6zSIj\\\\\\\\\\\\\\\"},{\\\\\\\\\\\\\\\"ownerId\\\\\\\\\\\\\\\":\\\\\\\\\\\\\\\"5cbc11bd3f13a3a5848cca8e9c5b85a038c92c33\\\\\\\\\\\\\\\"}]}timestamp=1771963121543\\\\\\\",\\\\\\\"signerID\\\\\\\":\\\\\\\"594e1fe91a54c5f9adaa8956fa79360346c18766\\\\\\\",\\\\\\\"signature\\\\\\\":\\\\\\\"kTr5A4q/hVckhy2MWT+T9UsEHqxyqOEUm5D3J8FLoZr3nozFuToAZsK6T4UCPoIyByh5aryEtsweFCYcqb+qmw==\\\\\\\",\\\\\\\"timestamp\\\\\\\":1771963121543,\\\\\\\"debug_verified\\\\\\\":true}\\\"},{\\\"pki-id-link\\\":\\\"51763f4511273e9717f5dea0d1217c38f7742a9dde8bcadaf8dc9260e7b52af4,1771962926545\\\"},{\\\"pki-hmac-keys\\\":\\\"[\\\\\\\"3ad9fa1737a14311af843405e45d17e6\\\\\\\",\\\\\\\"4fad7589e129465e899a7dc8aa67e265\\\\\\\",\\\\\\\"ea8ef8de9d0e4c7485652483a2075819\\\\\\\"]\\\"}],\\\"hashedPlainFields\\\":[{\\\"9e06d14f6c719c79f89dd01ba1b5aacc18d9f6a617d1b7c33a2710c830d5c1b3\\\":\\\"3d8f7f7dc455991d231e3156680bb60aa695dabdfeeb981e999e587d66220e1a\\\"},{\\\"986bdb945442cc7a34d8d939a0bc5112a07c2664bd0f5425958a2be17f9ed575\\\":\\\"6e557b88eeb55724b9ce3363253015ccb0bca9432f6a89f6276a989b77e13cc7\\\"},{\\\"pki-hmac-keys\\\":\\\"[\\\\\\\"3ad9fa1737a14311af843405e45d17e6\\\\\\\",\\\\\\\"4fad7589e129465e899a7dc8aa67e265\\\\\\\",\\\\\\\"ea8ef8de9d0e4c7485652483a2075819\\\\\\\"]\\\"}],\\\"hmacedPlainFields\\\":[{\\\"31640eae2267a9f1b9631728dec1b6a5f6191064c4126a58f194bc037ddf1bc3\\\":\\\"fd350e1410e0b4aaaa8b642f3c1fb55870766506af296230f78f22f574587997\\\"},{\\\"b172c18d130909e718d44685c36e94f07f9892ccaf617900ea3da5f02dc5e529\\\":\\\"57dfdfa6b21bd4dd356945d848c5bd28fa963980f07fba2efe0e2e10e1918af7\\\"},{\\\"9b2d58869fc72518ab7d483ea5f452b210c52cfebd66a978e923feadef8095b8\\\":\\\"6ce9dac4765db36ad9890bdb7a2069b96686a4bd282b296d3be56c8bc4b9358b\\\"}],\\\"debug_verified\\\":false}\"}]}timestamp=1771963195585",
+                    "signerID": "594e1fe91a54c5f9adaa8956fa79360346c18766",
+                    "signature": "dfxv0wR7C7ZswcSIsz0WBe5yfwJYIAdU/c8QA+LY6GEN7GyLLmqxW9EbnkZPwskpXC7ornGH0WoKjSUXzUM+2Q==",
+                    "timestamp": 1771963195585,
+                    "debug_verified": true
+                  }
+                },
+                {
+                  "validfrom_date": 1771945266000,
+                  "status_message": null,
+                  "finger_print": "2a36468cd2b6399396496fcf97dfffbc16513f87",
+                  "authority_status_message": null,
+                  "authority_suspension_date": null,
+                  "revocation_date": null,
+                  "create_date": 1771945269000,
+                  "expiration_date": 2024406066000,
+                  "authority_status": null,
+                  "cert_text": "-----BEGIN CERTIFICATE-----\nMIIFDTCCBLOgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCgzZTBjZGRm\r\nYmQyOWY5YmZmY2RjM2MxNDlmZDc2OGJhYjAyM2ZiOTZiMB4XDTI2MDIyNDIwMDEw\r\nNloXDTM0MDIyNDIwMDEwNlowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\r\nBggqhkjOPQMBBwNCAAS561GUDMBYGyGB+msN24L1k7mY2u/MBWh76DlsFBUKHWqU\r\nEuYvBL1n7lk3wgidzAqxF4J8ERd3iMRg7W5KtZmno4ID2TCCA9UwHQYDVR0OBBYE\r\nFKPY3jBMxl8/sFJc2Vwtxkl3KR3aMIIDsgYDVR0RBIIDqTCCA6WCggOheyJlMjZi\r\nZjA4NTM4YmE1MDU4ODMxNWU5Y2I1YjZlMDA3ZTlhZTkwMDM5MzgyYzgzZjgxMjU1\r\nZjgxZjI5MmJjN2U0IjoiZGMwMDkzOWIzYTA1MTUzNzkyMWVhMDFkMjlhYjY5YTBm\r\nODI2YTE5MjI5MzRjMTk5NDZmOTQ5NmI1ZWRmNTAwMiIsImFjZWUwNDU5OTM2NDZk\r\nYjQ3ZjlhZDg0ZTdhMTMzMDRhMGZjZTAwYzkzODczOTQwNjVlYWUyMzJlNWRlMWUz\r\nNDAiOiI2MTZmZDc4YzA3ZDczMjA5NjgxOWE4MDY2ZTk4ZGJkOTM4NWZmYWUxYzlh\r\nYmViZGI4YzkwZmFlZTE4NzMwNDE4IiwiYTZiNDcwOWUwNGYxZmVhYjMwYzFlMTJk\r\nNjUwNGIwYzEyYTZhZmVhMmVhNGM4MjcwZmIwNzcxNmVkZDZhNzk3YyI6IjYzMzdh\r\nMzY1ZTM1ZWFjM2Y1OGJkNmNjNjhlMjc2YmFjNzdhMWFhNTkwZWVkNmY2ODVjZThm\r\nYTEwZGJiYjYwNWIiLCJwa2ktYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0tQkVH\r\nSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9D\r\nQVE4QU1JSUJDZ0tDQVFFQXhzQ1gzcm1YQ1ZJaGk3bSs3SmZ1XHJcblkydjl0M0pm\r\nczZmTVM5VnFlVkNueHByVllZczNzZHNHNEd6NVdSR2NISGRxc2tzdUtWWk81TnMz\r\nQkJManVLbGVcclxuamQrejZ0Z1FzVUw0MEppRDh3UGF5SkwvaktZRWtkVmJyQzND\r\ncFpmN1ZRL3owK0N6NTNud2s0RDJOSUppR2JEdFxyXG5yZCt6eDdxWUR1dGxOa3pJ\r\nd3lrQ0hKTmV1dGhraDlXZEdpSENja3U2cjVudlVHRTlQT3g3TDdpSVZlNWIrMWJF\r\nXHJcbmR5VU11ZFZFc2grRGZlQ3VLSThEb291Ti9oV09uMTBLTUpxa3lDQVFBL2Zj\r\ncFlGa24yckhUMWdLMkRZeGY5NXNcclxuZjl0WldLelZSUzgvcmhaNTFjazNwZ3lJ\r\na2V5cHBqdFlYekFOZ1k1TXB6UzdnTXhiN1JKeVVZYUw4Nmc1Y1d6blxyXG5ld0lE\r\nQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iLCJwa2ktY2VydC12ZXJz\r\naW9uIjoiMS41In0wCgYIKoZIzj0EAwIDSAAwRQIhAJbzwTCNpxLN+05dEYHKHOnY\r\nOHhOhQNxa4aq6OUfoZL5AiAw5MKeHxL8P/jiizw556BUPzAk3pUkYLTwey13hYd7\r\nFg==\n-----END CERTIFICATE-----\n",
+                  "status": null,
+                  "csr": {
+                    "id": "5fd6d9b81345a1cee126cbe86a928d7d3bb79dc18b78c9afcfd47611c83047a3",
+                    "createDate": "02/24/2026",
+                    "status": "success",
+                    "label": "Demo Bio Info",
+                    "idAnchor": "d7551d405f832e4bcf90e3d8c3fafac0322520dd",
+                    "encryptionKey": "yrWYuNVgqJ01cxa/J+e7BQ==",
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEuetRlAzAWBshgfprDduC9ZO5mNrv\r\nzAVoe+g5bBQVCh1qlBLmLwS9Z+5ZN8IIncwKsReCfBEXd4jEYO1uSrWZpw==\n-----END PUBLIC KEY-----\n",
+                    "privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgEBiQbBjVR3IwXh9z\r\nYIng//32FDfP14S6br1QyVJkZF6hRANCAAS561GUDMBYGyGB+msN24L1k7mY2u/M\r\nBWh76DlsFBUKHWqUEuYvBL1n7lk3wgidzAqxF4J8ERd3iMRg7W5KtZmn\n-----END PRIVATE KEY-----\n",
+                    "asymDecryptionKey": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDGwJfeuZcJUiGL\r\nub7sl+5ja/23cl+zp8xL1Wp5UKfGmtVhizex2wbgbPlZEZwcd2qySy4pVk7k2zcE\r\nEuO4qV6N37Pq2BCxQvjQmIPzA9rIkv+MpgSR1VusLcKll/tVD/PT4LPnefCTgPY0\r\ngmIZsO2t37PHupgO62U2TMjDKQIck1662GSH1Z0aIcJyS7qvme9QYT087HsvuIhV\r\n7lv7VsR3JQy51USyH4N94K4ojwOii43+FY6fXQowmqTIIBAD99ylgWSfasdPWArY\r\nNjF/3mx/21lYrNVFLz+uFnnVyTemDIiR7KmmO1hfMA2BjkynNLuAzFvtEnJRhovz\r\nqDlxbOd7AgMBAAECggEAIgR6uetH95dwGGstS29hpPCp10kjKiuxItWfSK5OWQbN\r\nOMnMOYvEbIsaTm1eK90gjO2jM/4KuM7wZqkZAtUyUtQUBkD+8mgFECbahrCFNMk8\r\nJgWQSKmc7CZU52TQ5qk5UW1nPVo4m/Z5rVkXk1AeDiF4stm0BvGxPA7+WbDeJKej\r\nNXL3F/WHIQSKeuYkVLcrMcaSWnVk+QbUiAFOs7Z4hbU5SIVifaMIXwdPgEThc9iP\r\noKUgaq0UkOFEoGroZHW4aBnbUBGnwsrw3MSVL6XnRyEqVWGUKxwwkCY1j9cSwz6L\r\nj8ZQ202SQymDnq6fFP9LTuHJz/gIKJtJJ7rE8AUKaQKBgQDv53f5+OhEPhwltJAT\r\ne+hDSJTwrMeAYMv66/s/qpcUQIXCBm76Nfyllw3AuZDFrLWQdDPHH2IXroAkIb1q\r\nhjxP9fRz4xZm7IrFh1x2gxEbt6FmwzzY/4CHY0SSZdM5hAz9iuMA5SVZdgFv5cM5\r\nSadAIP24ZmAfiCqXxFjvcQX4nQKBgQDUFk+hGxa46CvIb6p2aSIHe0MttNNyqZdG\r\nWS3FaCklT8FvOPy8kvg2G/ZEdyHOS8j+WwKYvboDAoG3l0O/xjbc0dLtc29s0GEl\r\nR5jkisGEnH0DKckj8d6+8t4Brp3z2v2KBBivUCCp7QtQcPMuH0Lvya22f0hmuAba\r\nqzzVUJ+o9wKBgCnIMHcSyLEJ+DEA747VJ7CANaBtFxnewefjrZB7D3Dxg9o08KMX\r\nP/c/BaApMXOcDssn0dS+PIFPXPXuAmVJF7v9ZCPCyyYF0G1yk8H4NcSUCMIzAqfw\r\nZ9wsh8bPgSglPXXy+HIxdn3MNZfddlDF6SEcHdQ90EPtnS1tfufE0XtpAoGAC/HR\r\nvEYVSoaw6JH5bL/RDdDQYMOdYQjSH0EohcSvBI3wW/4+pbQ1TH7YqNR4z/COulyP\r\n0eBlmIPMoHVheGyGbHtYwMzOirdVsU7N+pkh+wEBPWteC6s0m1Z8UGXwOWqs+tfu\r\nN/lwTYGvMHGcEI3sLCsUoIGcp0RYBnq8a1smEtMCgYA+QxfGYo9YH9pZHSdBvbRU\r\ny6DFqeEhQ5yrbJfLY0RzcMViKjn1krA/WnuIatdUErM01xu9VGhPI60Xa2Oap21y\r\nrqQBhmG6NALSPPc5K4hiDqNDk+oDs0vQblKAPNzdwu/54Md9o4SEqD6pU8ZxtTn8\r\ngo1SHKcu3BeyrsPGlg6+jA==\n-----END PRIVATE KEY-----\n",
+                    "asymEncryptionKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxsCX3rmXCVIhi7m+7Jfu\r\nY2v9t3Jfs6fMS9VqeVCnxprVYYs3sdsG4Gz5WRGcHHdqsksuKVZO5Ns3BBLjuKle\r\njd+z6tgQsUL40JiD8wPayJL/jKYEkdVbrC3CpZf7VQ/z0+Cz53nwk4D2NIJiGbDt\r\nrd+zx7qYDutlNkzIwykCHJNeuthkh9WdGiHCcku6r5nvUGE9POx7L7iIVe5b+1bE\r\ndyUMudVEsh+DfeCuKI8DoouN/hWOn10KMJqkyCAQA/fcpYFkn2rHT1gK2DYxf95s\r\nf9tZWKzVRS8/rhZ51ck3pgyIkeyppjtYXzANgY5MpzS7gMxb7RJyUYaL86g5cWzn\r\newIDAQAB\n-----END PUBLIC KEY-----\n",
+                    "csrPEM": "-----BEGIN CERTIFICATE REQUEST-----\nMIIEujCCBGACAQAwEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIBBggqhkjO\r\nPQMBBwNCAAS561GUDMBYGyGB+msN24L1k7mY2u/MBWh76DlsFBUKHWqUEuYvBL1n\r\n7lk3wgidzAqxF4J8ERd3iMRg7W5KtZmnoIID7DCCA+gGCSqGSIb3DQEJDjGCA9kw\r\nggPVMB0GA1UdDgQWBBSj2N4wTMZfP7BSXNlcLcZJdykd2jCCA7IGA1UdEQSCA6kw\r\nggOlgoIDoXsiZTI2YmYwODUzOGJhNTA1ODgzMTVlOWNiNWI2ZTAwN2U5YWU5MDAz\r\nOTM4MmM4M2Y4MTI1NWY4MWYyOTJiYzdlNCI6ImRjMDA5MzliM2EwNTE1Mzc5MjFl\r\nYTAxZDI5YWI2OWEwZjgyNmExOTIyOTM0YzE5OTQ2Zjk0OTZiNWVkZjUwMDIiLCJh\r\nY2VlMDQ1OTkzNjQ2ZGI0N2Y5YWQ4NGU3YTEzMzA0YTBmY2UwMGM5Mzg3Mzk0MDY1\r\nZWFlMjMyZTVkZTFlMzQwIjoiNjE2ZmQ3OGMwN2Q3MzIwOTY4MTlhODA2NmU5OGRi\r\nZDkzODVmZmFlMWM5YWJlYmRiOGM5MGZhZWUxODczMDQxOCIsImE2YjQ3MDllMDRm\r\nMWZlYWIzMGMxZTEyZDY1MDRiMGMxMmE2YWZlYTJlYTRjODI3MGZiMDc3MTZlZGQ2\r\nYTc5N2MiOiI2MzM3YTM2NWUzNWVhYzNmNThiZDZjYzY4ZTI3NmJhYzc3YTFhYTU5\r\nMGVlZDZmNjg1Y2U4ZmExMGRiYmI2MDViIiwicGtpLWFzeW0tZW5jcnlwdGlvbi1r\r\nZXkiOiItLS0tLUJFR0lOIFBVQkxJQyBLRVktLS0tLVxuTUlJQklqQU5CZ2txaGtp\r\nRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF4c0NYM3JtWENWSWhpN20rN0pm\r\ndVxyXG5ZMnY5dDNKZnM2Zk1TOVZxZVZDbnhwclZZWXMzc2RzRzRHejVXUkdjSEhk\r\ncXNrc3VLVlpPNU5zM0JCTGp1S2xlXHJcbmpkK3o2dGdRc1VMNDBKaUQ4d1BheUpM\r\nL2pLWUVrZFZickMzQ3BaZjdWUS96MCtDejUzbndrNEQyTklKaUdiRHRcclxucmQr\r\neng3cVlEdXRsTmt6SXd5a0NISk5ldXRoa2g5V2RHaUhDY2t1NnI1bnZVR0U5UE94\r\nN0w3aUlWZTViKzFiRVxyXG5keVVNdWRWRXNoK0RmZUN1S0k4RG9vdU4vaFdPbjEw\r\nS01KcWt5Q0FRQS9mY3BZRmtuMnJIVDFnSzJEWXhmOTVzXHJcbmY5dFpXS3pWUlM4\r\nL3JoWjUxY2szcGd5SWtleXBwanRZWHpBTmdZNU1welM3Z014YjdSSnlVWWFMODZn\r\nNWNXem5cclxuZXdJREFRQUJcbi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLVxuIiwi\r\ncGtpLWNlcnQtdmVyc2lvbiI6IjEuNSJ9MAoGCCqGSM49BAMCA0gAMEUCIFy6g14/\r\nGK+V14hpvXI+jVnTNHTXj3Hmyzao/FAxkV/BAiEAwwHJCP8TcGtZm263jKNkBQR5\r\naZXJmN6ROgcC6tqwryI=\n-----END CERTIFICATE REQUEST-----\n",
+                    "signedDocument": [
+                      {
+                        "plainField": {
+                          "name": "First Name",
+                          "value": "Kalid"
+                        },
+                        "maskedField": {
+                          "name": "e26bf08538ba50588315e9cb5b6e007e9ae90039382c83f81255f81f292bc7e4",
+                          "value": "dc00939b3a051537921ea01d29ab69a0f826a1922934c19946f9496b5edf5002",
+                          "hmacKey": "198be11a4bea4bd591c5ca7937083fd3"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Sex",
+                          "value": "Male"
+                        },
+                        "maskedField": {
+                          "name": "acee045993646db47f9ad84e7a13304a0fce00c9387394065eae232e5de1e340",
+                          "value": "616fd78c07d732096819a8066e98dbd9385ffae1c9abebdb8c90faee18730418",
+                          "hmacKey": "f3c5c4829af0459a86e20007ca5c9fec"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "pki-id-link",
+                          "value": "d2971fc223efce6cbcc67d20635fb449948f4e0b6ff28a4ef3099dfcd11846dc,1771963174708"
+                        },
+                        "maskedField": {
+                          "name": "a6b4709e04f1feab30c1e12d6504b0c12a6afea2ea4c8270fb07716edd6a797c",
+                          "value": "6337a365e35eac3f58bd6cc68e276bac77a1aa590eed6f685ce8fa10dbbb605b",
+                          "hmacKey": "c188501368324651aa0aeb45fb9dfb0f"
+                        }
+                      }
+                    ],
+                    "cert_download_key": "c96b32cd2edb44499d3c7dcb270af57f"
+                  },
+                  "label": "Demo Bio Info"
+                },
+                {
+                  "validfrom_date": 1771945378000,
+                  "status_message": null,
+                  "finger_print": "89591a966d1d1aca84822cb47a62eac81662e26e",
+                  "authority_status_message": null,
+                  "authority_suspension_date": null,
+                  "revocation_date": null,
+                  "create_date": 1771945380000,
+                  "expiration_date": 2024406178000,
+                  "authority_status": null,
+                  "cert_text": "-----BEGIN CERTIFICATE-----\nMIIFlDCCBTmgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCgzZTBjZGRm\r\nYmQyOWY5YmZmY2RjM2MxNDlmZDc2OGJhYjAyM2ZiOTZiMB4XDTI2MDIyNDIwMDI1\r\nOFoXDTM0MDIyNDIwMDI1OFowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\r\nBggqhkjOPQMBBwNCAAS/NcFMlmyJLMZ3NrEiMeo6eJ/+LdlgnTR5vHNcmwnbfsaT\r\nZ440PlNe+Q2RxA2L2BOf7gC/gLqKrBPzQreMD7NFo4IEXzCCBFswHQYDVR0OBBYE\r\nFPYKF93FaWM0IniT7k/YuH2A2wdLMIIEOAYDVR0RBIIELzCCBCuCggQneyI5NDUy\r\nMjIxOTU5MjI4Y2ZlYzE3OTg1YjVlNzg0OTY5MGZiYTExMWUxY2E5NGFmYTM0NjY4\r\nYjczNGRiZGZkMjVmIjoiZmMzMmMzNDEyOTExMDc5N2NkOTg3Mzc5MTM2NjI1NmNi\r\nNjMyOTJhYzM3OWM0NWI5ZWU1ZGQ3NDBiODY3ZjNhMSIsIjQ0ODQ1ZmZhZjI4YzQx\r\nMDViNGJkNzRkZTBiMjkxNzc5YzZjMDU1YjZlYzFiM2JmMTc3ZTJmNjU5ZDYwNjll\r\nZmQiOiIxZDE1YzY1MjMzODcxMTNlYjAxOTNmNWExOWJkZWZmMDBkMjc0YTIyZTQ4\r\nMDlmMTI4ZjlhNWE2NGM1NzMyZGJhIiwiY2EzYTUzOTY4YWQyZTIyNzcxYmVhNmIy\r\nZGI2Yzk1Y2MzYTM0NDEzZTdmZmE2YjA4Mjk1ZmFhMmRjMGE5MmRjNyI6IjBkYmRh\r\nOTNmNTc1YTU3ODE4Nzg0MzIzMjQwZTRkMTJjZDc1NDExY2M3NzUwMTg2YWQzNDM2\r\nMGMyNzY2MDM0ODAiLCIzNjFhYWE4MDk2ZmI3MGM0YzBkODljNmQwYTYyYmFmYjIw\r\nNDM3NmRiM2M2ODk2M2M2MjQ1MTcyMjNjNjk2YjcxIjoiMDc1MGQ3YjI3YTc5MDM1\r\nZTQzYzgwMGEzZjRlNzdlMGE0NTg2YjYzOWQ4Nzg5NWEwZmQzNWRlNmE1NzVlNGE2\r\nMCIsInBraS1hc3ltLWVuY3J5cHRpb24ta2V5IjoiLS0tLS1CRUdJTiBQVUJMSUMg\r\nS0VZLS0tLS1cbk1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNn\r\nS0NBUUVBdnAvdHhZWG9sd2F2ZWFRM3BTTUNcclxuNkJlK3hXeDJtd1VwOUpaSU5J\r\nVi9kcVptcmx1REdjSk5pbml2TUQwV0hhbFdjRnlwbTN5dk5KQmtEOWMzbmtGa1xy\r\nXG5Pb2JKalZNUlNkSGkwdTdCWWhwUEtmaFYxVkNtRU5laHg4S2h6cHIxZCtxQWpB\r\nTlJsK0htbHd5QVd0NGtqSWMrXHJcblZMYnVrYzdZejU4cE5hZGZBSVVWSTZvc0c4\r\naXZuMXlQdTFyL1hMa1JQOFRqQWl1bWM0dXBLanJlWGtTRmdqMVNcclxuTDhoZHdY\r\nVlFqa0hxSGpPdVF6ZStxY2llWnFBQTNveTlwKzY1MnNVL0l0U0lPNWFvbmZCVUhw\r\nNDdvUUlsT3J1QlxyXG5LZjR2cThLQ243YWowTnF1TzFITkdiTzU4dEFDeTlEdDV2\r\nV2kyV3BJRWxIMWUvK2xwZ0JqNXhPdUVaYytwY3kwXHJcbmRRSURBUUFCXG4tLS0t\r\nLUVORCBQVUJMSUMgS0VZLS0tLS1cbiIsInBraS1jZXJ0LXZlcnNpb24iOiIxLjUi\r\nfTAKBggqhkjOPQQDAgNJADBGAiEAqBDX8p6jKvdZnmcJNJ+rxlIXLtxBRnok3BLB\r\nKM5aLiQCIQDtLf2pT7VWDpsfLNn+zAvNYdKli/XmJPR7pAiP9byfDA==\n-----END CERTIFICATE-----\n",
+                  "status": null,
+                  "csr": {
+                    "id": "2155c3f067a60ec6f0293d015f4e96061efb56047c88a3aa1445e5eefae73563",
+                    "createDate": "02/24/2026",
+                    "status": "success",
+                    "label": "Demo Address Info",
+                    "idAnchor": "d7551d405f832e4bcf90e3d8c3fafac0322520dd",
+                    "encryptionKey": "rDFe5W/uxrFMm6aEdl1weg==",
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEvzXBTJZsiSzGdzaxIjHqOnif/i3Z\r\nYJ00ebxzXJsJ237Gk2eOND5TXvkNkcQNi9gTn+4Av4C6iqwT80K3jA+zRQ==\n-----END PUBLIC KEY-----\n",
+                    "privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg3x4iO0AJLxA6IcJG\r\n07HeRF2K53HnnZgWdLT8io9SpN2hRANCAAS/NcFMlmyJLMZ3NrEiMeo6eJ/+Ldlg\r\nnTR5vHNcmwnbfsaTZ440PlNe+Q2RxA2L2BOf7gC/gLqKrBPzQreMD7NF\n-----END PRIVATE KEY-----\n",
+                    "asymDecryptionKey": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC+n+3FheiXBq95\r\npDelIwLoF77FbHabBSn0lkg0hX92pmauW4MZwk2KeK8wPRYdqVZwXKmbfK80kGQP\r\n1zeeQWQ6hsmNUxFJ0eLS7sFiGk8p+FXVUKYQ16HHwqHOmvV36oCMA1GX4eaXDIBa\r\n3iSMhz5Utu6RztjPnyk1p18AhRUjqiwbyK+fXI+7Wv9cuRE/xOMCK6Zzi6kqOt5e\r\nRIWCPVIvyF3BdVCOQeoeM65DN76pyJ5moADejL2n7rnaxT8i1Ig7lqid8FQenjuh\r\nAiU6u4Ep/i+rwoKftqPQ2q47Uc0Zs7ny0ALL0O3m9aLZakgSUfV7/6WmAGPnE64R\r\nlz6lzLR1AgMBAAECggEAKkjcm/+nx/SOMSv5wfJhvy0hPrbgGmQLWfuKGchxLVcd\r\nGNko3CprO+eoaMlsIflBuNv9LYX7cWwEHjVt23eC7a6ff+9outjJeWPH1uSiIdu5\r\n4n8ozzyd4OtuLB/YipikmipUS54rId9+i2mSbu/DJlSL2CErm+ag5Atz+fALb+T6\r\nKspJlv7G8wk1KBxSJuVvUgrhC3+HPstDYXOibtGX67jeQk94DYf2NUhKDy3i/2aA\r\nZ2A1ZO15DEwlVIHpWs4WsNgaz6BWWHTyyYyTD1qNWJtp+VnXiKKwEN0kc6TdfeEg\r\nl7UzQeJNu7E/V8nNRdtEI0eqnwztYnjUkauZFD7jAQKBgQDiEIjaHl6ggaeZ71gH\r\nTG7Dz9QwGNhCTcHIqYgFAgSskRtLlXgeias5NlXOVJMT/eXSkDeYOQ5RCXH2htGS\r\nXP5f98uiB4WuJWywIg44IwHhyl1xzcWqtU3/DQCYy5w/aSQLop0zlalT2MZC22WC\r\n6FkLOY5a57BMjftRdaxadoxCgQKBgQDX3gCQkOVRMyoyOL6IVv8gYHvyq/EH/hJv\r\nZ9o4YaaG3ivaEr3bH4o4HfInruW2qtaR3mjRXlgvdwMPg2fSVtFQkM23nzXCIEOd\r\n7KeK3g91CYViONJGMAQHBp+6ignvuhzFDxuuBlNr2QofBVm6DKtRfsSNUlRqXtLE\r\njMUzzOuP9QKBgQDbUitTYi9wDRnrkHeY7SBxPMqhtxjoisO8yC08no6mVUlj9SlK\r\nh0nlAcARo5/lv2ge9ufY+VHYcQ9tm7LrCumHdcLL+fxJzek6oG+nKt+CjXBHHtnt\r\nGmUHUzgHBVMbeggMecGF8GcM/7yp1G0RqhXpe/eOXkV+oCj5CO8j/OtrAQKBgQCm\r\nesk2tPiV8f618rtGzMk/wAl3cxGVl2XCU3ahivXyB4AMU+3mA2IGu1mZLzJr+T84\r\nCi4OYlNib8eFfFNijaAqITL2TSwZheZ/8haYa3/CRFCBGs9YYAmLHZmsNG9LWd58\r\nP5WaVbiacS10FR1I9iJd3IVbdEY0LuMfwG0J8R0uzQKBgQCYHzCxT8OTjUVag14b\r\nmzLouaoiqESZfP0h0PENfbijwRGYI09UWHjg8lcnSWQ/+ifq5Xl+RLm0Ys4cccFB\r\nVKq54hJn1gSvX+TA3vA4QqbEHotOybcNyWPN3XWRvmvCrqwgaDbnrGBJEcxDYjVM\r\n1jwYpuBys5ncfMWEORzmxnGHpw==\n-----END PRIVATE KEY-----\n",
+                    "asymEncryptionKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvp/txYXolwaveaQ3pSMC\r\n6Be+xWx2mwUp9JZINIV/dqZmrluDGcJNinivMD0WHalWcFypm3yvNJBkD9c3nkFk\r\nOobJjVMRSdHi0u7BYhpPKfhV1VCmENehx8Khzpr1d+qAjANRl+HmlwyAWt4kjIc+\r\nVLbukc7Yz58pNadfAIUVI6osG8ivn1yPu1r/XLkRP8TjAiumc4upKjreXkSFgj1S\r\nL8hdwXVQjkHqHjOuQze+qcieZqAA3oy9p+652sU/ItSIO5aonfBUHp47oQIlOruB\r\nKf4vq8KCn7aj0NquO1HNGbO58tACy9Dt5vWi2WpIElH1e/+lpgBj5xOuEZc+pcy0\r\ndQIDAQAB\n-----END PUBLIC KEY-----\n",
+                    "csrPEM": "-----BEGIN CERTIFICATE REQUEST-----\nMIIFQDCCBOYCAQAwEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIBBggqhkjO\r\nPQMBBwNCAAS/NcFMlmyJLMZ3NrEiMeo6eJ/+LdlgnTR5vHNcmwnbfsaTZ440PlNe\r\n+Q2RxA2L2BOf7gC/gLqKrBPzQreMD7NFoIIEcjCCBG4GCSqGSIb3DQEJDjGCBF8w\r\nggRbMB0GA1UdDgQWBBT2ChfdxWljNCJ4k+5P2Lh9gNsHSzCCBDgGA1UdEQSCBC8w\r\nggQrgoIEJ3siOTQ1MjIyMTk1OTIyOGNmZWMxNzk4NWI1ZTc4NDk2OTBmYmExMTFl\r\nMWNhOTRhZmEzNDY2OGI3MzRkYmRmZDI1ZiI6ImZjMzJjMzQxMjkxMTA3OTdjZDk4\r\nNzM3OTEzNjYyNTZjYjYzMjkyYWMzNzljNDViOWVlNWRkNzQwYjg2N2YzYTEiLCI0\r\nNDg0NWZmYWYyOGM0MTA1YjRiZDc0ZGUwYjI5MTc3OWM2YzA1NWI2ZWMxYjNiZjE3\r\nN2UyZjY1OWQ2MDY5ZWZkIjoiMWQxNWM2NTIzMzg3MTEzZWIwMTkzZjVhMTliZGVm\r\nZjAwZDI3NGEyMmU0ODA5ZjEyOGY5YTVhNjRjNTczMmRiYSIsImNhM2E1Mzk2OGFk\r\nMmUyMjc3MWJlYTZiMmRiNmM5NWNjM2EzNDQxM2U3ZmZhNmIwODI5NWZhYTJkYzBh\r\nOTJkYzciOiIwZGJkYTkzZjU3NWE1NzgxODc4NDMyMzI0MGU0ZDEyY2Q3NTQxMWNj\r\nNzc1MDE4NmFkMzQzNjBjMjc2NjAzNDgwIiwiMzYxYWFhODA5NmZiNzBjNGMwZDg5\r\nYzZkMGE2MmJhZmIyMDQzNzZkYjNjNjg5NjNjNjI0NTE3MjIzYzY5NmI3MSI6IjA3\r\nNTBkN2IyN2E3OTAzNWU0M2M4MDBhM2Y0ZTc3ZTBhNDU4NmI2MzlkODc4OTVhMGZk\r\nMzVkZTZhNTc1ZTRhNjAiLCJwa2ktYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0t\r\nQkVHSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZB\r\nQU9DQVE4QU1JSUJDZ0tDQVFFQXZwL3R4WVhvbHdhdmVhUTNwU01DXHJcbjZCZSt4\r\nV3gybXdVcDlKWklOSVYvZHFabXJsdURHY0pOaW5pdk1EMFdIYWxXY0Z5cG0zeXZO\r\nSkJrRDljM25rRmtcclxuT29iSmpWTVJTZEhpMHU3QllocFBLZmhWMVZDbUVOZWh4\r\nOEtoenByMWQrcUFqQU5SbCtIbWx3eUFXdDRrakljK1xyXG5WTGJ1a2M3WXo1OHBO\r\nYWRmQUlVVkk2b3NHOGl2bjF5UHUxci9YTGtSUDhUakFpdW1jNHVwS2pyZVhrU0Zn\r\najFTXHJcbkw4aGR3WFZRamtIcUhqT3VRemUrcWNpZVpxQUEzb3k5cCs2NTJzVS9J\r\ndFNJTzVhb25mQlVIcDQ3b1FJbE9ydUJcclxuS2Y0dnE4S0NuN2FqME5xdU8xSE5H\r\nYk81OHRBQ3k5RHQ1dldpMldwSUVsSDFlLytscGdCajV4T3VFWmMrcGN5MFxyXG5k\r\nUUlEQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iLCJwa2ktY2VydC12\r\nZXJzaW9uIjoiMS41In0wCgYIKoZIzj0EAwIDSAAwRQIhAL3mje8ORwXu8fY4JhI8\r\n8OLniyUGdc766ELbzL2XWGrYAiAyAioit4MPcQYvJgmyCH7Vkt938LQ2kJW0/JWy\r\ngm4U0A==\n-----END CERTIFICATE REQUEST-----\n",
+                    "signedDocument": [
+                      {
+                        "plainField": {
+                          "name": "State",
+                          "value": "Maryland"
+                        },
+                        "maskedField": {
+                          "name": "9452221959228cfec17985b5e7849690fba111e1ca94afa34668b734dbdfd25f",
+                          "value": "fc32c34129110797cd9873791366256cb63292ac379c45b9ee5dd740b867f3a1",
+                          "hmacKey": "c7297ab9a9d047e5ab4173cf646b484e"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "City",
+                          "value": "Baltimore"
+                        },
+                        "maskedField": {
+                          "name": "44845ffaf28c4105b4bd74de0b291779c6c055b6ec1b3bf177e2f659d6069efd",
+                          "value": "1d15c6523387113eb0193f5a19bdeff00d274a22e4809f128f9a5a64c5732dba",
+                          "hmacKey": "89de120d5cd04b33ad6717724630dadb"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Neighborhood",
+                          "value": "Downtown"
+                        },
+                        "maskedField": {
+                          "name": "ca3a53968ad2e22771bea6b2db6c95cc3a34413e7ffa6b08295faa2dc0a92dc7",
+                          "value": "0dbda93f575a57818784323240e4d12cd75411cc7750186ad34360c276603480",
+                          "hmacKey": "814d88fb4be345309c60a26c78be6c2e"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "pki-id-link",
+                          "value": "1839ee5e8af169757eb536f9f6bee3ccfd4177227f3d298226bebc18f268a1e7,1771963317053"
+                        },
+                        "maskedField": {
+                          "name": "361aaa8096fb70c4c0d89c6d0a62bafb204376db3c68963c624517223c696b71",
+                          "value": "0750d7b27a79035e43c800a3f4e77e0a4586b639d87895a0fd35de6a575e4a60",
+                          "hmacKey": "09fa856482ce4e9c87e6135c3d7bf060"
+                        }
+                      }
+                    ],
+                    "cert_download_key": "3965983d25f0402cb1d2e4777c9b157d"
+                  },
+                  "label": "Demo Address Info"
+                },
+                {
+                  "validfrom_date": 1771945474000,
+                  "status_message": null,
+                  "finger_print": "8f2016e0506ff227ed24581cd117027bd9bdd48f",
+                  "authority_status_message": null,
+                  "authority_suspension_date": null,
+                  "revocation_date": null,
+                  "create_date": 1771945477000,
+                  "expiration_date": 2024406274000,
+                  "authority_status": null,
+                  "cert_text": "-----BEGIN CERTIFICATE-----\nMIIFkzCCBTmgAwIBAgIBATAKBggqhkjOPQQDAjAzMTEwLwYDVQQDDCgzZTBjZGRm\r\nYmQyOWY5YmZmY2RjM2MxNDlmZDc2OGJhYjAyM2ZiOTZiMB4XDTI2MDIyNDIwMDQz\r\nNFoXDTM0MDIyNDIwMDQzNFowEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIB\r\nBggqhkjOPQMBBwNCAAQ8uCXsFyRvlptd/EFMxYap+ZTqiy6dAoK92dFfhvPsIxdv\r\nSc9jfXTgCwrLublNTs1EVKeb8JAxoT3dsM9GTHjmo4IEXzCCBFswHQYDVR0OBBYE\r\nFPZGUjF1QHqWKW7kathyg5mb2SXsMIIEOAYDVR0RBIIELzCCBCuCggQneyJjNWE2\r\nMTlhODcwZmE0NzM0MDQyMzgzODIxMTU3MmUxMzFmMzJjOTRmZGEzM2NhZDUzNWE5\r\nZTdkYmIzMWY0MTliIjoiYmE1Njc4YzVmNTBhOGExYjMyNTIxZDYwYjdmZjE1YWY0\r\nZDc0OGVkZWYyMjJiZjE3ZGM2YTZhYzllZGFjNGYzNyIsIjNkMmRjODY1ODBmNDdj\r\nYzcwZmEwMzA5NzM1MmJiNWIwMzE1N2U4MzJlZTc4NjdmZTUyZTZiMmM2ZGQ5YTRi\r\nMTciOiJmODRiMGZhNWRmODA0NzAwMjhjZTIzYzQ2NmVmYzBjODYzMTg0MDIxYWU0\r\nZjhkZTg4NzU2MmU3ZWVjMDI2NWRmIiwiZjk0Y2E3YWNlZGM4ZWE1NWY0M2JiNzJj\r\nMDZlN2FiOTg4NGQ1NGQzMTdiZmI0ZjU5OWI4M2YwMDhmNDdjNTdhMiI6ImRkNTQ3\r\nMGMyYzc3MTNjNGExZmQ4NjcxYmFjZWE2ODUyYzFjNTY5MjcyMjY5ZTUyYTJmOGQw\r\nNTk0NzY5OTdlNGQiLCJlY2YwNTFmMDFmM2RhYTk1Y2YxNmRjMzI2ZDQ1ZDFhODg1\r\nODQ4Mjc4YmJmYzBhYzViZDBkMWI2ODBiYjk3ZGQ5IjoiN2I5NjM5ODQ5MGMzYTI0\r\nM2JkNzYwMmEzNDIwMjgyMjc1ZmZlOGNmYWJlZGQwNTc5NzZiYTc4ZTE1ZWRhOWM0\r\nZSIsInBraS1hc3ltLWVuY3J5cHRpb24ta2V5IjoiLS0tLS1CRUdJTiBQVUJMSUMg\r\nS0VZLS0tLS1cbk1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNn\r\nS0NBUUVBclpDbFcxKzRicnU1a2drT0tnUGNcclxuOGNaSzJEZ0ZobjZrSm5pSWpa\r\nUWZWb29XSjI2UlNWcWd3RnhuUmxIL2JHTno5MVI2Qk9BZkpZWmh1NTVseTJiU1xy\r\nXG5RQ1ZJWE56dDk0QTFzdllVU0M5UXNVUjFTNnVyWXNVZEZHZXA2cFRsZ0toOUU0\r\naG9NVlpFa3MybWRZMzY1akk1XHJcbkc2b29mOTBEQk1hOUFudkFFeDIzSTNqemNa\r\nMWtPejUycFhBaFVXNFpNL0JlRVZzTE9naWtFQTIrbmxaaGZnR3pcclxubTFJTGdZ\r\nbmJrTzVZZGI4WmtIU0xDRzkydmJqOUd0K0JyVjVqa3ByaThWZHlxeFVEZ3BPRDZO\r\ndXZYRDBtRStQYVxyXG5MQkdEbEN3Tk1FM25GeHEvYytKSUVBTzZlVWhyOUd3RktJ\r\nUEIrTHFaYkFRVmhRUDd3VnFzZHgyOEppa1l5SmhCXHJcbkp3SURBUUFCXG4tLS0t\r\nLUVORCBQVUJMSUMgS0VZLS0tLS1cbiIsInBraS1jZXJ0LXZlcnNpb24iOiIxLjUi\r\nfTAKBggqhkjOPQQDAgNIADBFAiAeRldeK9A7cVbHzKGEh2ZmD5WXx2bHhMlyTroG\r\nF7WdDQIhANQA/U6Jh9wG3AEalURzBcJIb9lsptBHOFQQHze2DIc4\n-----END CERTIFICATE-----\n",
+                  "status": null,
+                  "csr": {
+                    "id": "6346f090ea2c9a8c7eedd823dddef27da27c4e0d5d96d06d2df55671db4a7829",
+                    "createDate": "02/24/2026",
+                    "status": "success",
+                    "label": "Demo Age Info",
+                    "idAnchor": "d7551d405f832e4bcf90e3d8c3fafac0322520dd",
+                    "encryptionKey": "2iArzicCRnTGTSHYDJAEpQ==",
+                    "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPLgl7Bckb5abXfxBTMWGqfmU6osu\r\nnQKCvdnRX4bz7CMXb0nPY3104AsKy7m5TU7NRFSnm/CQMaE93bDPRkx45g==\n-----END PUBLIC KEY-----\n",
+                    "privateKey": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgRDPEoTk3j7UJ+LdI\r\nsSB4q5Fkvvb8RdqCE7LEkzgV9lOhRANCAAQ8uCXsFyRvlptd/EFMxYap+ZTqiy6d\r\nAoK92dFfhvPsIxdvSc9jfXTgCwrLublNTs1EVKeb8JAxoT3dsM9GTHjm\n-----END PRIVATE KEY-----\n",
+                    "asymDecryptionKey": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCtkKVbX7huu7mS\r\nCQ4qA9zxxkrYOAWGfqQmeIiNlB9WihYnbpFJWqDAXGdGUf9sY3P3VHoE4B8lhmG7\r\nnmXLZtJAJUhc3O33gDWy9hRIL1CxRHVLq6tixR0UZ6nqlOWAqH0TiGgxVkSSzaZ1\r\njfrmMjkbqih/3QMExr0Ce8ATHbcjePNxnWQ7PnalcCFRbhkz8F4RWws6CKQQDb6e\r\nVmF+AbObUguBiduQ7lh1vxmQdIsIb3a9uP0a34GtXmOSmuLxV3KrFQOCk4Po269c\r\nPSYT49osEYOULA0wTecXGr9z4kgQA7p5SGv0bAUog8H4uplsBBWFA/vBWqx3Hbwm\r\nKRjImEEnAgMBAAECggEAQ0HuEf6BxcdRHdoMdxOQJtCkaC0tVvT0P0QuBk8D5dEU\r\nzKr3+ej4qhIkowdbZ3ESmyFNN15yM2RjswSqhauOhfTsma+zN1mjdXoOWfqb1lWk\r\n7nHTtC6WGjYhjhms5bJk5ZDSb2vynsC6ZItkUpfbsXC6yPGoHc21qKSzxbSaJ1Av\r\nX/QtK/80PjuVywUfeqX9fJvuWvyEa+A928nVcpXxgzhVylYcyW+1iIohS4DTSwGd\r\nFfMLwu+W0LBwynRVXvGjlawpYPSYOAsXfMtMCALJRn7A7XYWwQ5feftUtSuLP2gg\r\n6e1sc59i6y9/CYQTUylwtquHKGsavQxFYEsihZsR4QKBgQDmjjOuJ7YJskvFEDPP\r\n67tBn27Y370v057YYNfYJfcXYPujz088dpMXlZwKiXvk0fLR8HUKHDnxVGYujhRl\r\nPr61LQ+/jAtD0jO/UeOFXqqy9bjiOnL4BUNt/irwAVhQg/SzKclGVO6Ws11+uITQ\r\n+PobOLEeFvMmHiEdm/gCvmn37QKBgQDAuFBgy4PoPOQ1etFDrgEDvf6iS6tiaPtH\r\n25jk6M0UNl4OUTeGjURm0LzTYCQBvnDzHDaV6cRPtaz+MRwBEl6m61WOBaIA+q4S\r\nO+rRBRJFPR6xwlONLEeN8KCh62twhYhuy2u6eo6p0zHaUxbjbpiOHW11ox+uQ6Bh\r\nSTqdJiXS4wKBgQDfV/wqhp+rDwSll0eJ8QOK06bvAvdjoG5tkIsoAcc256V+D7Lj\r\nkL53h2ANORhDFztSMs0+iQ98gFUoXkzVs43NNyTdWw4Cmlu0x+BPb+CO0slSpmp/\r\nZ6HlqOXxcGwcO2hOM3me32HtrT4yJw/K3JZ0zluOGY9caq2L4G7GQa2oFQKBgQCQ\r\n/9xSB622ZWIars6WSmwvAZt9RsurHmu5lArEaDgstf8sbIUHcnB9nx4DN7m/qibX\r\nc2nKf3kZtAp1skNstwKKOlRDqA9NB09DHtu86kDl4WefvSMZ+6/Wpq5lRXivz3ho\r\nTBtA0gdW1TUUHCIDemnDu3Zo5RPoDK+1ouA77sDUmwKBgF6VqF4JLgz3ljLGvDmS\r\nypAg/MD63o75TMt1KBwFlkYzHxsBOqFATQbpgCPuYP43scgSgNTSi0SURL6VqcBL\r\n4ZPsHTz4UyME6wHj/YhQrZnq3jyCu7+ZtPqSQDUrA4lX1Uz+CjdcO0/gYq8eMltn\r\n+i0MyOH6Otxt60+JnCDnvBJT\n-----END PRIVATE KEY-----\n",
+                    "asymEncryptionKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArZClW1+4bru5kgkOKgPc\r\n8cZK2DgFhn6kJniIjZQfVooWJ26RSVqgwFxnRlH/bGNz91R6BOAfJYZhu55ly2bS\r\nQCVIXNzt94A1svYUSC9QsUR1S6urYsUdFGep6pTlgKh9E4hoMVZEks2mdY365jI5\r\nG6oof90DBMa9AnvAEx23I3jzcZ1kOz52pXAhUW4ZM/BeEVsLOgikEA2+nlZhfgGz\r\nm1ILgYnbkO5Ydb8ZkHSLCG92vbj9Gt+BrV5jkpri8VdyqxUDgpOD6NuvXD0mE+Pa\r\nLBGDlCwNME3nFxq/c+JIEAO6eUhr9GwFKIPB+LqZbAQVhQP7wVqsdx28JikYyJhB\r\nJwIDAQAB\n-----END PUBLIC KEY-----\n",
+                    "csrPEM": "-----BEGIN CERTIFICATE REQUEST-----\nMIIFQDCCBOYCAQAwEDEOMAwGA1UEAwwFSHVtYW4wWTATBgcqhkjOPQIBBggqhkjO\r\nPQMBBwNCAAQ8uCXsFyRvlptd/EFMxYap+ZTqiy6dAoK92dFfhvPsIxdvSc9jfXTg\r\nCwrLublNTs1EVKeb8JAxoT3dsM9GTHjmoIIEcjCCBG4GCSqGSIb3DQEJDjGCBF8w\r\nggRbMB0GA1UdDgQWBBT2RlIxdUB6lilu5GrYcoOZm9kl7DCCBDgGA1UdEQSCBC8w\r\nggQrgoIEJ3siYzVhNjE5YTg3MGZhNDczNDA0MjM4MzgyMTE1NzJlMTMxZjMyYzk0\r\nZmRhMzNjYWQ1MzVhOWU3ZGJiMzFmNDE5YiI6ImJhNTY3OGM1ZjUwYThhMWIzMjUy\r\nMWQ2MGI3ZmYxNWFmNGQ3NDhlZGVmMjIyYmYxN2RjNmE2YWM5ZWRhYzRmMzciLCIz\r\nZDJkYzg2NTgwZjQ3Y2M3MGZhMDMwOTczNTJiYjViMDMxNTdlODMyZWU3ODY3ZmU1\r\nMmU2YjJjNmRkOWE0YjE3IjoiZjg0YjBmYTVkZjgwNDcwMDI4Y2UyM2M0NjZlZmMw\r\nYzg2MzE4NDAyMWFlNGY4ZGU4ODc1NjJlN2VlYzAyNjVkZiIsImY5NGNhN2FjZWRj\r\nOGVhNTVmNDNiYjcyYzA2ZTdhYjk4ODRkNTRkMzE3YmZiNGY1OTliODNmMDA4ZjQ3\r\nYzU3YTIiOiJkZDU0NzBjMmM3NzEzYzRhMWZkODY3MWJhY2VhNjg1MmMxYzU2OTI3\r\nMjI2OWU1MmEyZjhkMDU5NDc2OTk3ZTRkIiwiZWNmMDUxZjAxZjNkYWE5NWNmMTZk\r\nYzMyNmQ0NWQxYTg4NTg0ODI3OGJiZmMwYWM1YmQwZDFiNjgwYmI5N2RkOSI6Ijdi\r\nOTYzOTg0OTBjM2EyNDNiZDc2MDJhMzQyMDI4MjI3NWZmZThjZmFiZWRkMDU3OTc2\r\nYmE3OGUxNWVkYTljNGUiLCJwa2ktYXN5bS1lbmNyeXB0aW9uLWtleSI6Ii0tLS0t\r\nQkVHSU4gUFVCTElDIEtFWS0tLS0tXG5NSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZB\r\nQU9DQVE4QU1JSUJDZ0tDQVFFQXJaQ2xXMSs0YnJ1NWtna09LZ1BjXHJcbjhjWksy\r\nRGdGaG42a0puaUlqWlFmVm9vV0oyNlJTVnFnd0Z4blJsSC9iR056OTFSNkJPQWZK\r\nWVpodTU1bHkyYlNcclxuUUNWSVhOenQ5NEExc3ZZVVNDOVFzVVIxUzZ1cllzVWRG\r\nR2VwNnBUbGdLaDlFNGhvTVZaRWtzMm1kWTM2NWpJNVxyXG5HNm9vZjkwREJNYTlB\r\nbnZBRXgyM0kzanpjWjFrT3o1MnBYQWhVVzRaTS9CZUVWc0xPZ2lrRUEyK25sWmhm\r\nZ0d6XHJcbm0xSUxnWW5ia081WWRiOFprSFNMQ0c5MnZiajlHdCtCclY1amtwcmk4\r\nVmR5cXhVRGdwT0Q2TnV2WEQwbUUrUGFcclxuTEJHRGxDd05NRTNuRnhxL2MrSklF\r\nQU82ZVVocjlHd0ZLSVBCK0xxWmJBUVZoUVA3d1Zxc2R4MjhKaWtZeUpoQlxyXG5K\r\nd0lEQVFBQlxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iLCJwa2ktY2VydC12\r\nZXJzaW9uIjoiMS41In0wCgYIKoZIzj0EAwIDSAAwRQIgenEMV2Tkm22zgI1EY919\r\nq6i4Vnv0v0xWYyb7ns3PlK8CIQCeydt/LgaYtxaUoFs89wTFWSkU7BLY9sv5GICY\r\nGfX5Sw==\n-----END CERTIFICATE REQUEST-----\n",
+                    "signedDocument": [
+                      {
+                        "plainField": {
+                          "name": "Age",
+                          "value": "45"
+                        },
+                        "maskedField": {
+                          "name": "c5a619a870fa47340423838211572e131f32c94fda33cad535a9e7dbb31f419b",
+                          "value": "ba5678c5f50a8a1b32521d60b7ff15af4d748edef222bf17dc6a6ac9edac4f37",
+                          "hmacKey": "b72be75f49b14c498db81ff7bb78e639"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Birth Month",
+                          "value": "January"
+                        },
+                        "maskedField": {
+                          "name": "3d2dc86580f47cc70fa03097352bb5b03157e832ee7867fe52e6b2c6dd9a4b17",
+                          "value": "f84b0fa5df80470028ce23c466efc0c863184021ae4f8de887562e7eec0265df",
+                          "hmacKey": "5bb93efa5bac493c8ea592f2afae5dc1"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "Birth Year",
+                          "value": "1981"
+                        },
+                        "maskedField": {
+                          "name": "f94ca7acedc8ea55f43bb72c06e7ab9884d54d317bfb4f599b83f008f47c57a2",
+                          "value": "dd5470c2c7713c4a1fd8671bacea6852c1c569272269e52a2f8d059476997e4d",
+                          "hmacKey": "43c1db2e72af402a98c655f35ddbcbcb"
+                        }
+                      },
+                      {
+                        "plainField": {
+                          "name": "pki-id-link",
+                          "value": "9ef9ea0d731459554225ec854f73e0c8fdaf8342551fe85e373f31eeec330f01,1771963422332"
+                        },
+                        "maskedField": {
+                          "name": "ecf051f01f3daa95cf16dc326d45d1a885848278bbfc0ac5bd0d1b680bb97dd9",
+                          "value": "7b96398490c3a243bd7602a3420282275ffe8cfabedd057976ba78e15eda9c4e",
+                          "hmacKey": "bd0869b38c5f44dca109faf81e88a016"
+                        }
+                      }
+                    ],
+                    "cert_download_key": "8997df74427a431c8059d7f4cca30693"
+                  },
+                  "label": "Demo Age Info"
+                }
+      		]
+		}  
+  
+		window.certisfy.setClientApp({findCertificate:(finger_print)=>demoProfile.certificates.find(cert=>cert.finger_print == finger_print)});
+  
+        //these are hacks for vuetify's datetime component
+        let dateString = new Date().toLocaleString("en-US");
+        const [month,day,year] = dateString.substring(0,dateString.indexOf(",")).split('/')
+        let curDate = `${year}-${month}-${day}`;//ISO format
+        let formatDate=(d)=>`${month}/${day}/${year}`;
+  
+        this.claimContext.claimExpirationDate=curDate;
+        this.claimContext.claimExpirationDateText=formatDate(this.claimContext.claimExpirationDate);
+
+        this.claimContext.claimValidFromDate=curDate;
+        this.claimContext.claimValidFromDateText=formatDate(this.claimContext.claimValidFromDate);  
+
+   		this.$nextTick(() => {
+            // create the editor
+            const container = this.$refs["jsoneditor"];//document.getElementById("jsoneditor");//
+            const options = {
+              // Specify the modes to be available in the dropdown
+              // Available modes: 'tree' (default), 'view', 'form', 'code', 'text', 'table'
+              modes: ['code', 'text', 'tree', 'view', 'form'], // Add 'table' if needed and you have the dependency
+
+              // Set the initial mode (optional, defaults to 'tree')
+              mode: 'tree' 
+            };
+
+            //console.log("app mounted",container)
+            const editor = new JSONEditor(container, options)
+
+            // set json
+            const initialJson = {
+                "Array": [1, 2, 3],
+                "Boolean": true,
+                "Null": null,
+                "Number": 123,
+                "Object": {"a": "b", "c": "d"},
+                "String": "Hello World"
+            }
+            //editor.set(initialJson)
+
+            // get json
+            const updatedJson = editor.get()
+            this.jsoneditor = editor;             
+            this.userProfile.certificates.push(...demoProfile.certificates);          
+        })    	 
+},"computed":{"idAnchorCerts":function()
+{
+	let vm = this;
+  	let certList = [{"title":"Select","value":null}];
+  	if(vm.userProfile.certificates)
+    {
+        let certMatch;
+        for(let i=0;i<vm.userProfile.certificates.length;i++)
+        {
+           let cert  =  vm.userProfile.certificates[i];
+           if(vm.isCertIdAnchor(cert))
+           {
+                let isIdAnchorLink = (vm.claimContext.certContext && cert.finger_print == vm.claimContext.certContext.csr.idAnchor);
+                if(isIdAnchorLink)
+                  	certMatch = cert;
+                certList.push(Object.assign({},{"title":cert.label,"value":cert}));
+           }
+        }
+        if(certMatch)
+          	vm.claimContext.idAnchor = certMatch
+    }
+  	return certList;
+}},"setup":function(){
+
+},"watch":{"claimContext.claimExpirationDate":function(val){
+    let vm = this;
+    vm.claimContext.claimExpirationDateText=vm.formatDate(vm.claimContext.claimExpirationDate);
+},"claimContext.claimValidFromDate":function(val){
+    let vm = this;
+    vm.claimContext.claimValidFromDateText=vm.formatDate(vm.claimContext.claimValidFromDate);
+}}};
+
+//before app mount include
+
+
+
+
+var isSolventComposerMode = (new URL(window.location.href).searchParams.get("radkit_composer_on") == "true");
+var isSolventLowcodrEmbeddedUIMode = (new URL(window.location.href).searchParams.get("radkit_composer_headlessMode") != "true");
+var SolventLowcodrAppLoader = function(){
+try
+{
+    importAppModule("./App-module.js?ts="+(new Date().getTime())).then((appModule)=>{
+        window["appModule"] = appModule.default?appModule.default:appModule;   
+
+        
+    
+   try
+   {
+        if(SolventVueJSversion && SolventVueJSversion != '2'){
+            SolventVueMainApp = Vue.createApp(SolventVueMainAppConfig);
+            SolventVueMainApp.use(Vuetify.createVuetify());
+
+            if(typeof SolventRadkitComposerNodeFrameDef == "object"){//set if in composer mode
+                SolventVueMainApp.component("solvent-radkit-composer-node-frame",SolventRadkitComposerNodeFrameDef.vuejs);
+            }
+          
+            if(typeof solventAppErrorHandler != "undefined" && solventAppErrorHandler){
+              	SolventVueMainApp.config.errorHandler = solventAppErrorHandler;
+                SolventVueMainApp.config.warnHandler = solventAppErrorHandler;
+            }
+          
+            SolventVueMainAppPublicInstance = SolventVueMainApp.mount("#"+SolventVueMainAppMountElementId);
+        }
+        else
+        {
+            if(typeof SolventRadkitComposerNodeFrameDef == "object"){//set if in composer mode
+                Vue.component("solvent-radkit-composer-node-frame",SolventRadkitComposerNodeFrameDef.vuejs);
+            }
+          
+            if(typeof solventAppErrorHandler != "undefined" && solventAppErrorHandler){
+              	Vue.config.errorHandler = solventAppErrorHandler;
+                Vue.config.warnHandler = solventAppErrorHandler;
+            }
+          
+            SolventVueMainApp = new Vue(SolventVueMainAppConfig);
+        }
+    }
+    catch(error){
+        if((new URL(window.location.href).searchParams.get("radkit_composer_viewport_id"))){
+            (window.parent?window.parent:window).postMessage(Object.assign({},{
+                "message":"radkit.driver.objectEditorUIEvent",
+                "editorMsg":"log-app-message",
+                "args":{
+                  "log":error,
+                  "radkit_composer_viewport_id":(new URL(window.location.href).searchParams.get("radkit_composer_viewport_id"))
+                }
+             }));
+    	}
+    }  
+    });
+}
+catch(error){
+    if((new URL(window.location.href).searchParams.get("radkit_composer_viewport_id"))){
+        (window.opener?window.opener:(window.parent?window.parent:window)).postMessage(Object.assign({},{
+          "message":"radkit.driver.objectEditorUIEvent",
+          "editorMsg":"log-app-message",
+          "args":{
+            "log":error,
+            "radkit_composer_viewport_id":(new URL(window.location.href).searchParams.get("radkit_composer_viewport_id"))
+          }
+        }));
+    }
+}
+if(typeof SolventVueMainAppPublicInstance != "undefined" && SolventVueMainAppPublicInstance != null)
+	SolventVueMainAppPublicInstance.appModule = appModule;
+else
+if(typeof SolventVueMainApp != "undefined" && SolventVueMainApp != null)
+	SolventVueMainApp.appModule = appModule;
+};
+if(isSolventLowcodrEmbeddedUIMode || !isSolventComposerMode)
+	window.addEventListener('load', SolventLowcodrAppLoader);
+
+//after mount app include
+
+</script>
+<!--after create app include--><script>const App=SolventVueMainAppConfig;
+</script>
+</body></html>
