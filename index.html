@@ -56,6 +56,36 @@ function importAppModule(modulePath){return import(modulePath)};
   </v-col>
 </v-row>
 
+
+<v-divider></v-divider>
+
+<v-row class="mb-2 mt-2">  
+  
+  	<v-col cols="12" v-if="(activeAPIEndPoint && (!activeAPIEndPoint.requestSigningInfo || !activeAPIEndPoint.requestSigningInfo.signRequest) &&  activeAPIEndPoint.target && activeAPIEndPoint.target != defaultAPIEndPoint)">
+      <v-select
+           label="Signing Algo"
+           :items="apiSigningAlgos"
+           v-model="apiReqSigningAlgo"
+           persistent-hint
+           return-object
+            @change="updateAPIInfo"
+        />    
+    </v-col>
+
+	<v-col cols="12" v-if="(activeAPIEndPoint && (!activeAPIEndPoint.requestSigningInfo || !activeAPIEndPoint.requestSigningInfo.signRequest) && activeAPIEndPoint.target && activeAPIEndPoint.target != defaultAPIEndPoint)">
+       <v-text-field placeholder="API Key" v-model="apiReqSignerID" @change="updateAPIInfo"/>
+    </v-col>
+
+    <v-col cols="12" v-if="(activeAPIEndPoint && (!activeAPIEndPoint.requestSigningInfo || !activeAPIEndPoint.requestSigningInfo.signRequest) && activeAPIEndPoint.target && activeAPIEndPoint.target != defaultAPIEndPoint)">
+      <v-textarea placeholder="Private Key" v-model="apiReqSignerPrivateKey" @change="updateAPIInfo" />
+    </v-col>
+  
+  	<v-col cols="12" v-if="(activeAPIEndPoint && activeAPIEndPoint.requestSigningInfo && activeAPIEndPoint.requestSigningInfo.signRequest)">
+      <v-text-field placeholder="Bearer Token Gen URL" v-model="apiReqBearTokenGenURL" />
+    </v-col>
+</v-row>
+
+
 <v-row class="mb-2 mt-2">
   <v-col>
     <v-tabs v-model="tabs.certificateInfo">
@@ -516,6 +546,7 @@ var SolventVueMainAppMountElementId ='app';
 var SolventVueMainApp = null;
 
 var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion != 'undefined' && SolventVueJSversion != null && SolventVueJSversion != '2')?null:new Vuetify(),"data":function() {
+  		const vm = this;
                 return {
                     tab: null,
                     tabs: {
@@ -589,6 +620,12 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
                       "isForPrivatePersona":false,
                       "dhExchange":null
                     },
+                    defaultAPIEndPoint:"https://certisfy.com/api-proxy-controller/",
+                    apiReqSignerID:null,
+                    apiReqSignerPrivateKey:null,
+                  	apiSigningAlgos:["ECDSA","RSA-PSS","RSA"],
+                    apiReqSigningAlgo:null,
+                    apiReqBearTokenGenURL:null,
                     activeAPIEndPoint:null,
                   	apiEndPoints:[
                       {
@@ -619,6 +656,9 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
                             algo:"ECDSA",
                             signRequest:async function(stringToSign,signData){
                             	//invoke remote token gen ...
+                                if(vm.apiReqBearTokenGenURL && vm.apiReqBearTokenGenURL.length>0){
+                                  return (await (await fetch(`${vm.apiReqBearTokenGenURL}?stringToSign=${stringToSign}`)).text());
+                                }
                               
                               	//example bearer token gen
                               	let sig =   certisfySDK.cryptoUtil.toBase64(await signData(stringToSign,this.privateKeyBase64,this.algo));
@@ -791,6 +831,13 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
     return `${month}/${day}/${year}`;
 },"setAPIInfo":function (apiEndPoint) {
   	certisfySDK.setAPIInfo(apiEndPoint);
+},"updateAPIInfo":function (apiEndPoint) {  	
+    if(this.activeAPIEndPoint && this.activeAPIEndPoint.target && this.activeAPIEndPoint.target != this.defaultAPIEndPoint){
+      this.activeAPIEndPoint.requestSigningInfo.signerID =  this.apiReqSignerID;
+      this.activeAPIEndPoint.requestSigningInfo.algo =  this.apiReqSigningAlgo;
+      this.activeAPIEndPoint.requestSigningInfo.privateKeyBase64 =  this.apiReqSignerPrivateKey;
+      certisfySDK.setAPIInfo(this.activeAPIEndPoint);
+    }
 }},"mounted":async function(){
     	const {createSDK} = await import(window.location.hostname == "certisfy.com"?`https://cdn.jsdelivr.net/gh/CipherTrustee/certisfy-js/src/loader.js`:`./js/certisfy/src/loader.js`)
 
