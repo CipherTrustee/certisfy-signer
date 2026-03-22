@@ -9,9 +9,8 @@ The signer has no other dependencies except crypto functionality via pkijs ([htt
 The code required for signing is in [certisfy-js](https://github.com/CipherTrustee/certisfy-js), the required module import and setup is below:
 
 ```javascript
-   import * as certisfy from "./js/certisfy/certisfy.js" 
-   certisfy.SET_SDK_MODE(true); 
-   certisfy.loadTrustRoots();
+   import {createSDK} from "./js/certisfy/src/loader.js" 
+   const certisfySDK = await createSDK();
 ```
 
 ### The signer test console
@@ -87,7 +86,7 @@ The signer exposes the following API functions to faciliate claim creation.
     **Usage** 
     
     ```javascript
-    const claim = await certisfy.signClaim(signer,stringToSign,plainFields,idAnchorCertObject,receiverId,includeTrustChain,includeTrustChainInIDCertSig,vouchedForClaimIdentities,isForPrivatePersona);
+    const claim = await certisfySDK.signer.signClaim(signer,stringToSign,plainFields,idAnchorCertObject,receiverId,includeTrustChain,includeTrustChainInIDCertSig,vouchedForClaimIdentities,isForPrivatePersona);
     ```
            
 2. `getVouchedClaimIdentities(plainFields)`
@@ -104,7 +103,7 @@ The signer exposes the following API functions to faciliate claim creation.
     **Usage** 
     
     ```javascript
-    const vouchedForClaimIdentities = await certisfy.getVouchedClaimIdentities(plainFields);
+    const vouchedForClaimIdentities = await certisfySDK.signer.getVouchedClaimIdentities(plainFields);
     ```
 	
     The `vouchedForClaimIdentities` is used during claim identity generation by the Certisfy platform to ensure
@@ -125,12 +124,12 @@ The signer exposes the following API functions to faciliate claim creation.
       See the signer console app for an example of how this is done.
 
     - `useExchange`\
-      This is optional, it can be a DH exchange object previously obtained via `certisfy.getDHExchange(userCode)`. 
+      This is optional, it can be a DH exchange object previously obtained via `certisfySDK.api.getDHExchange(userCode)`. 
       
     **Usage** 
     
     ```javascript
-    const {status,dhExchange,claim} = await certisfy.executeDHExchange(userCode,fnClaimProvider,useExchange);
+    const {status,dhExchange,claim} = await certisfySDK.signer.executeDHExchange(userCode,fnClaimProvider,useExchange);
     const {create_date,user_code,public_key} = dhExchange;
     ```
     
