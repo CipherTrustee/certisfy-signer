@@ -5,14 +5,6 @@
 <link href="js/jsoneditor/jsoneditor.min.css" rel="stylesheet">
 <script src="js/jsoneditor/jsoneditor.min.js"></script>
 
-<!--
-<script type="module">
-  import * as certisfy from "./js/certisfy/certisfy.js"
-  window.certisfy = certisfy;
-  window.certisfy.SET_SDK_MODE(true);
-  window.certisfy.loadTrustRoots();
-</script>
--->
 
 <style type="text/css">
     [v-cloak] {
@@ -50,6 +42,21 @@ function importAppModule(modulePath){return import(modulePath)};
         };
     }
 </script></head><body><div id="app" data-role="mount-element" v-cloak solvent_object_id="b590da55d485a28d930856a942f476f9"><v-app solvent_object_id="el-tkn6g0w5ssnjd"><v-main solvent_object_id="el-8o043ozobyce9"><v-app-bar solvent_object_id="c3e8326de0bc15b81ea786ca457c4b2c"><v-toolbar-title solvent_object_id="611ac004e9789f0270f203c85cdc25c0">Certisfy Claim Signer</v-toolbar-title></v-app-bar><v-container solvent_object_id="el-xw8jb7tohalhe"><v-row class="mb-2 mt-2">
+  <v-col>
+		<v-select
+           label="API End-Point"
+           :items="apiEndPoints"
+           v-model="activeAPIEndPoint"
+           item-title="label"
+           item-value="target"
+           persistent-hint
+           return-object
+           @update:model-value="setAPIInfo"
+        />    
+  </v-col>
+</v-row>
+
+<v-row class="mb-2 mt-2">
   <v-col>
     <v-tabs v-model="tabs.certificateInfo">
       <v-tab value="certificateInfo">Certificate Info</v-tab>
@@ -581,12 +588,53 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
                       "claimValidFromTimeMenu":false,
                       "isForPrivatePersona":false,
                       "dhExchange":null
-                    }
+                    },
+                    activeAPIEndPoint:null,
+                  	apiEndPoints:[
+                      {
+                         label:"No API",
+                      	 target:null
+                      },
+                      //this api endpoint is just for demo, cors is disabled for all domains, it will be disabled
+ 					  //or limited to certisfy.com in the future.
+                      {
+                         label:"Demo End-Point",
+                         target:"https://certisfy.com/api-proxy-controller/"
+                      },
+                      {
+                         label:"Live End-Point",
+                         target:"https://api.cipheredtrust.com/v1",
+                         requestSigningInfo:{
+                      	    signerID:"",//key finger print from account portal
+                            privateKeyBase64:``,//private key from account portal
+                            algo:"ECDSA"
+                      	 }
+                      },
+                      {
+                         label:"Live End-Point (Remote Bearer Token Gen)",
+                         target:"https://api.cipheredtrust.com/v1",
+                         requestSigningInfo:{
+                      	    signerID:"",//key finger print from account portal
+                            privateKeyBase64:``,//private key from account portal
+                            algo:"ECDSA",
+                            signRequest:async function(stringToSign,signData){
+                            	//invoke remote token gen ...
+                              
+                              	//example bearer token gen
+                              	let sig =   certisfySDK.cryptoUtil.toBase64(await signData(stringToSign,this.privateKeyBase64,this.algo));
+      							let authorization = `${this.signerID}:${sig}`;
+                                console.log("remote bearer token",authorization)
+                              
+                                return authorization;
+                            }
+                      	 }
+                      }
+                    ]
                 };
             },"methods":{"executeClaimExchange":function(userCode,fnClaimProvider){
         let vm = this;
   		return new Promise(async (resolve,reject)=>{
-              const dhResp = await certisfy.executeDHExchange(userCode,fnClaimProvider,vm.claimContext.dhExchange);
+              const dhResp = await certisfySDK.signer.executeDHExchange(userCode,fnClaimProvider,vm.claimContext.dhExchange);
 
 			  if(dhResp.status == "success")
               {
@@ -625,7 +673,7 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
 
               let spUri = vm.claimContext.spUri && vm.claimContext.spUri.trim().length>0?vm.claimContext.spUri.trim():null;
 
-              certisfy.signClaim(signer,JSON.stringify(signedString),plainFields,vm.claimContext.idAnchor,spUri,vm.claimContext.includeTrustChain,(vm.claimContext.includeTrustChain || vm.includeTrustChainInIDCertSig),(await certisfy.getVouchedClaimIdentities(plainFields)),vm.claimContext.isForPrivatePersona).
+              certisfySDK.signer.signClaim(signer,JSON.stringify(signedString),plainFields,vm.claimContext.idAnchor,spUri,vm.claimContext.includeTrustChain,(vm.claimContext.includeTrustChain || vm.includeTrustChainInIDCertSig),(await certisfySDK.signer.getVouchedClaimIdentities(plainFields)),vm.claimContext.isForPrivatePersona).
               then(async (signature)=>{
                   let signatureText = JSON.stringify(signature);
                   
@@ -643,11 +691,11 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
        return this.executeClaimExchange(exchangeCode,fnClaimProvider);
     else
        return fnClaimProvider();
-},"setDHXSPUri":function(userCode){
-   certisfy.getDHExchange(userCode).then((dhx)=>{
-      let alice_data = dhx.alice_data?JSON.parse(dhx.alice_data):null;
-      this.claimContext.spUri = alice_data && alice_data.sp_uri && alice_data.sp_uri.length>0?alice_data.sp_uri:this.claimContext.spUri;
-   });
+},"setDHXSPUri":async function(userCode){
+  
+   const dhx = await certisfySDK.api.getDHExchange(userCode);
+   let alice_data = dhx.alice_data?JSON.parse(dhx.alice_data):null;
+   this.claimContext.spUri = alice_data && alice_data.sp_uri && alice_data.sp_uri.length>0?alice_data.sp_uri:this.claimContext.spUri;
 },"addCertClaimField":function(){
     if(!this.claimContext.fieldModel.name || this.claimContext.fieldModel.name.length == 0){
        alert("Please provide label for field");
@@ -666,7 +714,7 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
     let vm = this;
     
     return new Promise((resolve,reject)=>{
-        certisfy.getDHExchange(userCode).then((resp)=>{
+        certisfySDK.api.getDHExchange(userCode).then((resp)=>{
 			if(!resp.status || resp.status == "success"){
                 vm.claimContext.dhExchange = resp;
                 resolve(resp);
@@ -679,12 +727,12 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
   	let vm = this;
   
   	return new Promise(async (resolve,reject)=>{
-		resolve(await certisfy.createStandardClaimFields(signer,
+		resolve(await certisfySDK.signer.createStandardClaimFields(signer,
            certContextSelectedFields,
            certContextUnverifiedFields,
            extraFields,
-           certisfy.createClaimDateTime(vm.claimContext.claimValidFromDateText,vm.claimContext.claimValidFromTime,"00:01"),
-           certisfy.createClaimDateTime(vm.claimContext.claimExpirationDateText,vm.claimContext.claimExpirationTime,"23:59")                                              
+           certisfySDK.helperUtil.createClaimDateTime(vm.claimContext.claimValidFromDateText,vm.claimContext.claimValidFromTime,"00:01"),
+           certisfySDK.helperUtil.createClaimDateTime(vm.claimContext.claimExpirationDateText,vm.claimContext.claimExpirationTime,"23:59")                                              
         ));
     });
 },"showDate":function (timestamp) {
@@ -711,7 +759,7 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
     for(let j=0;j<cert.csr.signedDocument.length;j++)
     {
         let field =  cert.csr.signedDocument[j];
-      	for(let key in certisfy.idAnchorElements)
+      	for(let key in certisfySDK.getConfig().idAnchorElements)
         {
             if(field.plainField.name == key)
             {
@@ -741,17 +789,11 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
 
     const [year, month, day] =(typeof date == "string"?date:toISOString(date)).split('-')
     return `${month}/${day}/${year}`;
+},"setAPIInfo":function (apiEndPoint) {
+  	certisfySDK.setAPIInfo(apiEndPoint);
 }},"mounted":async function(){
-  		const certisfy = await import(`https://cdn.jsdelivr.net/gh/CipherTrustee/certisfy-js/certisfy.js`)
+    	const {createSDK} = await import(window.location.hostname == "certisfy.com"?`https://cdn.jsdelivr.net/gh/CipherTrustee/certisfy-js/src/loader.js`:`./js/certisfy/src/loader.js`)
 
-        window.certisfy = certisfy;
-        window.certisfy.SET_SDK_MODE(true);
-        window.certisfy.loadTrustRoots()
-
-        //this is just for demo, cors is disabled for all domains, it will be disabled
- 		//or limited to certisfy.com in the future.
-  		window.certisfy.setAPITarget("https://certisfy.com/api-proxy-controller/")
-  
  		const demoProfile = {
            "certificates": [
                 {
@@ -1209,10 +1251,13 @@ var SolventVueMainAppConfig={"el":"#app","vuetify":(typeof SolventVueJSversion !
                   "label": "Demo Age Info"
                 }
       		]
-		}  
+		}
+        
+		const certisfySDK = await createSDK({
+          	clientApp:{findCertificate:(finger_print)=>demoProfile.certificates.find(cert=>cert.finger_print == finger_print)}
+        });   
   
-		window.certisfy.setClientApp({findCertificate:(finger_print)=>demoProfile.certificates.find(cert=>cert.finger_print == finger_print)});
-  
+  		window.certisfySDK = certisfySDK;
         //these are hacks for vuetify's datetime component
         let dateString = new Date().toLocaleString("en-US");
         const [month,day,year] = dateString.substring(0,dateString.indexOf(",")).split('/')
