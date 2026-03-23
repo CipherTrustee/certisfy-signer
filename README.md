@@ -15,7 +15,7 @@ The code required for signing is in [certisfy-js](https://github.com/CipherTrust
 
 ### The signer test console
 
-The verifier test console app can be accessed here: [https://certisfy.com/signer/](https://certisfy.com/signer/).
+The signer test console app can be accessed here: [https://certisfy.com/signer/](https://certisfy.com/signer/).
 
 The point of the console app is primarily to demonstrate claim signing independent of the Certisfy app ([https://certisfy.com/app/](https://certisfy.com/app/)). 
 
@@ -27,4 +27,4 @@ Developers can use the console app for basic testing of automated claim generati
 
 Currently a signer is available only for Javascript.
 
-The signer exposes this [API](https://github.com/CipherTrustee/certisfy-js/tree/master/docs/signer) to faciliate claim creation.
+The signer test console implements this [API](https://github.com/CipherTrustee/certisfy-js/tree/master/docs/signer) to faciliate claim creation.
