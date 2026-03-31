@@ -1,16 +1,13 @@
 # Certisfy Claim Signing And Integration
 
-This signer is a complement to the [verifier](https://github.com/CipherTrustee/certisfy-verifier), it shows how
-developers can integrate Certisfy claim creation into their own applications.
-
-This signer is for use by developers to sign Certisfy claims within apps & services that use Certisfy for information verification. 
-The signer has no other dependencies except crypto functionality via pkijs ([https://pkijs.org/](https://pkijs.org/)) and associated utilities, the required dependencies are already included.
+This signer is a complement to the [verifier](https://github.com/CipherTrustee/certisfy-verifier).
 
 The code required for signing is in [certisfy-js](https://github.com/CipherTrustee/certisfy-js), the required module import and setup is below:
 
 ```javascript
    import {createSDK} from "./js/certisfy/src/loader.js" 
    const certisfySDK = await createSDK();
+   const {signer} = certisfySDK;
 ```
 
 ### The signer test console
